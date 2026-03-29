@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1976d2" />
+    <meta name="description" content="个人导航站，整理和分享您喜爱的网站链接" />
+    <link rel="icon" href="/vite.svg" />
+    <title>导航站</title>
+
+    <style>
+      /* 1. 背景优化：全局动态磨砂背景 */
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        /* 这里替换为你喜欢的壁纸链接 */
+        background: url('https://api.dujin.org/bing/1920.php') no-repeat center center fixed;
+        background-size: cover;
+        overflow-x: hidden;
+      }
+
+      /* 背景遮罩层：增加文字可读性和磨砂感 */
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.2); /* 调暗背景 */
+        backdrop-filter: blur(8px); /* 全局毛玻璃效果 */
+        -webkit-backdrop-filter: blur(8px);
+        z-index: -1;
+      }
+
+      /* 2. 音乐模块样式 */
+      #music-container {
+        position: fixed;
+        bottom: 25px;
+        right: 25px;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50px;
+        padding: 5px 15px 5px 5px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      #music-container:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: scale(1.05);
+      }
+
+      /* 唱片旋转动画 */
+      .music-disc {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        background: linear-gradient(45deg, #333, #000);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #fff;
+        animation: rotate 4s linear infinite;
+        animation-play-state: paused;
+      }
+
+      .music-disc.playing {
+        animation-play-state: running;
+      }
+
+      .music-disc i {
+        color: white;
+        font-size: 12px;
+      }
+
+      .music-info {
+        margin-left: 10px;
+        color: white;
+        font-size: 13px;
+        font-weight: 500;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      }
+
+      @keyframes rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      /* 隐藏原生音频控件 */
+      #bg-audio { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- 音乐模块 HTML -->
+    <div id="music-container" onclick="toggleMusic()">
+      <div id="music-disc" class="music-disc">
+        <span style="color: white; font-size: 18px;">♪</span>
+      </div>
+      <div class="music-info" id="music-title">点击播放音乐</div>
+      <audio id="bg-audio" loop>
+        <!-- 替换为你自己的音乐地址（建议使用 https 直链） -->
+        <source src="https://api.uomg.com/api/rand.music?sort=热歌榜" type="audio/mpeg">
+      </audio>
+    </div>
+
+    <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+      // 音乐播放控制逻辑
+      const audio = document.getElementById('bg-audio');
+      const disc = document.getElementById('music-disc');
+      const title = document.getElementById('music-title');
+      let isPlaying = false;
+
+      function toggleMusic() {
+        if (isPlaying) {
+          audio.pause();
+          disc.classList.remove('playing');
+          title.innerText = '暂停中...';
+        } else {
+          audio.play().catch(e => {
+            console.log("播放被浏览器拦截，请手动点击播放");
+          });
+          disc.classList.add('playing');
+          title.innerText = '正在播放音乐';
+        }
+        isPlaying = !isPlaying;
+      }
+
+      // 自动尝试播放（大部分浏览器需要用户交互后才能生效）
+      window.addEventListener('click', () => {
+        // 如果想让用户点网页任何地方就开始播，可以在这里加逻辑
+      }, { once: true });
+    </script>
+  </body>
+</html>
