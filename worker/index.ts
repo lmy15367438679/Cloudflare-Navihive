@@ -273,7 +273,7 @@ const ALLOWED_ORIGINS = [
 /**
  * 获取 CORS 头
  */
-function getCorsHeaders(request: Request): Record<string, string> {
+/*function getCorsHeaders(request: Request): Record<string, string> {
     const origin = request.headers.get('Origin');
     const requestUrl = new URL(request.url);
 
@@ -301,6 +301,30 @@ function getCorsHeaders(request: Request): Record<string, string> {
         'Access-Control-Max-Age': '86400',
     };
 }
+*/
+
+function getCorsHeaders(request: Request): Record<string, string> {
+    const origin = request.headers.get('Origin');
+    
+    /**
+     * 修改逻辑：
+     * 书签脚本会在各种不同的域名下运行，因此我们无法预知所有 Origin。
+     * 为了兼容书签脚本，我们需要将请求的 origin 直接反射回去。
+     * 
+     * 注意：由于下方设置了 'Access-Control-Allow-Credentials': 'true'，
+     * 所以这里绝对不能返回通配符 '*'，必须返回具体的域名。
+     */
+    const finalOrigin = origin || '*';
+
+    return {
+        'Access-Control-Allow-Origin': finalOrigin,
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '86400',
+    };
+}
+
 
 /**
  * 创建带 CORS 头的 JSON 响应
