@@ -264,11 +264,11 @@ function validateExportData(data: unknown): { valid: boolean; errors: string[] }
 }
 
 // CORS 配置
-const ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://localhost:8788',
-    // 生产环境会自动允许同源
-];
+// const ALLOWED_ORIGINS = [
+//     'http://localhost:5173',
+//     'http://localhost:8788',
+//     // 生产环境会自动允许同源
+// ];
 
 /**
  * 获取 CORS 头
