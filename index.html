@@ -141,6 +141,50 @@
       window.addEventListener('click', () => {
         // 如果想让用户点网页任何地方就开始播，可以在这里加逻辑
       }, { once: true });
+
+      // --- 新增：处理书签收藏请求 ---
+(function handleBookmarklet() {
+  const params = new URLSearchParams(window.location.search);
+  const addUrl = params.get('add_url');
+  const addName = params.get('add_name');
+
+  if (addUrl && addName) {
+    // 创建一个简单的加载遮罩
+    const overlay = document.createElement('div');
+    overlay.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;color:white;flex-direction:column;font-family:sans-serif;";
+    overlay.innerHTML = `<h3>正在收藏至导航站...</h3><p>${addName}</p>`;
+    document.body.appendChild(overlay);
+
+    // 直接调用同域 API (不需要 Bearer Token，因为浏览器会自动携带当前域名的 Cookie)
+    fetch('/api/sites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        group_id: 1, // 默认收藏到第一个分组
+        name: addName,
+        url: addUrl,
+        icon: `https://www.google.com/s2/favicons?domain=${new URL(addUrl).hostname}&sz=128`,
+        description: "快捷收藏",
+        order_num: 0,
+        is_public: 1
+      })
+    })
+    .then(res => {
+      if (res.ok) {
+        overlay.innerHTML = "<h3 style='color:#4caf50'>✅ 收藏成功！</h3>";
+        setTimeout(() => window.close(), 1000); // 1秒后自动关闭小窗口
+      } else if (res.status === 401) {
+        overlay.innerHTML = "<h3 style='color:#ff9800'>🔑 请先登录导航站</h3><button onclick='window.location.href=\"/\"' style='padding:10px 20px;cursor:pointer'>去登录</button>";
+      } else {
+        overlay.innerHTML = `<h3 style='color:#f44336'>❌ 收藏失败 (${res.status})</h3><button onclick='window.close()'>关闭</button>`;
+      }
+    })
+    .catch(err => {
+      overlay.innerHTML = `<h3 style='color:#f44336'>❌ 网络错误</h3><p>${err}</p>`;
+    });
+  }
+})();
+      
     </script>
   </body>
 </html>
