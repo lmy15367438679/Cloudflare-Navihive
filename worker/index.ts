@@ -904,42 +904,81 @@ export default {
 
                     const result = await api.updateGroupOrder(data);
                     return createJsonResponse({ success: result }, request);
-                } else if (path === "site-orders" && method === "PUT") {
-                    const data = (await validateRequestBody(request)) as Array<{ id: number; order_num: number }>;
+                } 
+                // else if (path === "site-orders" && method === "PUT") {
+                //     const data = (await validateRequestBody(request)) as Array<{ id: number; order_num: number }>;
 
-                    // 验证排序数据
-                    if (!Array.isArray(data)) {
-                        return createJsonResponse(
-                            {
-                                success: false,
-                                message: "排序数据必须是数组",
-                            },
-                            request,
-                            { status: 400 }
-                        );
-                    }
+                //     // 验证排序数据
+                //     if (!Array.isArray(data)) {
+                //         return createJsonResponse(
+                //             {
+                //                 success: false,
+                //                 message: "排序数据必须是数组",
+                //             },
+                //             request,
+                //             { status: 400 }
+                //         );
+                //     }
 
-                    for (const item of data) {
-                        if (
-                            !item.id ||
-                            typeof item.id !== "number" ||
-                            item.order_num === undefined ||
-                            typeof item.order_num !== "number"
-                        ) {
+                //     for (const item of data) {
+                //         if (
+                //             !item.id ||
+                //             typeof item.id !== "number" ||
+                //             item.order_num === undefined ||
+                //             typeof item.order_num !== "number"
+                //         ) {
+                //             return createJsonResponse(
+                //                 {
+                //                     success: false,
+                //                     message: "排序数据格式无效，每个项目必须包含id和order_num",
+                //                 },
+                //                 request,
+                //                 { status: 400 }
+                //             );
+                //         }
+                //     }
+
+                //     const result = await api.updateSiteOrder(data);
+                //     return createJsonResponse({ success: result }, request);
+                // }
+
+                    // 批量更新站点排序（支持跨组移动）
+                    else if (path === "site-orders" && method === "PUT") {
+                        // 强制转换为包含 group_id 的类型
+                        const data = (await validateRequestBody(request)) as Array<{ id: number; order_num: number; group_id: number }>;
+                    
+                        // 1. 验证是否为数组
+                        if (!Array.isArray(data)) {
                             return createJsonResponse(
-                                {
-                                    success: false,
-                                    message: "排序数据格式无效，每个项目必须包含id和order_num",
-                                },
+                                { success: false, message: "排序数据必须是数组" },
                                 request,
                                 { status: 400 }
                             );
                         }
+                    
+                        // 2. 验证每一个条目是否包含 id, order_num 和 group_id
+                        for (const item of data) {
+                            if (
+                                !item.id || typeof item.id !== "number" ||
+                                item.order_num === undefined || typeof item.order_num !== "number" ||
+                                item.group_id === undefined || typeof item.group_id !== "number" // 新增验证
+                            ) {
+                                return createJsonResponse(
+                                    {
+                                        success: false,
+                                        message: "排序数据格式无效，每个项目必须包含 id, order_num 和 group_id",
+                                    },
+                                    request,
+                                    { status: 400 }
+                                );
+                            }
+                        }
+                    
+                        // 3. 调用更新方法
+                        const result = await api.updateSiteOrder(data);
+                        return createJsonResponse({ success: result }, request);
                     }
-
-                    const result = await api.updateSiteOrder(data);
-                    return createJsonResponse({ success: result }, request);
-                }
+                    
                 // 配置相关API
                 else if (path === "configs" && method === "GET") {
                     const configs = await api.getConfigs();
