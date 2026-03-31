@@ -5,22 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#1976d2" />
     <meta name="description" content="个人导航站，整理和分享您喜爱的网站链接" />
+    
+    <!-- 性能优化：预连接外部资源 -->
+    <link rel="preconnect" href="https://api.dujin.org" />
+    <link rel="preconnect" href="https://proxy.api.030101.xyz" />
     <link rel="icon" href="/vite.svg" />
     <title>导航站</title>
 
     <style>
-      /* 1. 背景优化：全局动态磨砂背景 */
+      /* 基础重置 */
+      * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
       body {
         margin: 0;
         padding: 0;
         min-height: 100vh;
-        /* 这里替换为你喜欢的壁纸链接 */
-        background: url('https://api.dujin.org/bing/1920.php') no-repeat center center fixed;
-        background-size: cover;
+        /* 背景占位色，防止图片加载前的白屏 */
+        background-color: #1a1a1a; 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         overflow-x: hidden;
       }
 
-      /* 背景遮罩层：增加文字可读性和磨砂感 */
+      /* 优化：使用固定伪元素替代 background-attachment: fixed，解决移动端性能问题 */
+      body::after {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: url('https://api.dujin.org/bing/1920.php') no-repeat center center;
+        background-size: cover;
+        z-index: -2;
+        /* 提升图像渲染速度 */
+        image-rendering: -webkit-optimize-contrast;
+      }
+
+      /* 遮罩层与磨砂优化 */
       body::before {
         content: "";
         position: fixed;
@@ -28,13 +49,15 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.2); /* 调暗背景 */
-        backdrop-filter: blur(8px); /* 全局毛玻璃效果 */
-        -webkit-backdrop-filter: blur(8px);
+        background: rgba(0, 0, 0, 0.25);
+        /* 性能提示：backdrop-filter 在大面积使用时较耗资源，设置 will-change 优化 */
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         z-index: -1;
+        will-change: backdrop-filter;
       }
 
-      /* 2. 音乐模块样式 */
+      /* 音乐模块容器优化 */
       #music-container {
         position: fixed;
         bottom: 25px;
@@ -42,51 +65,57 @@
         z-index: 9999;
         display: flex;
         align-items: center;
-        background: rgba(255, 255, 255, 0.2);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 50px;
-        padding: 5px 15px 5px 5px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        transition: all 0.3s ease;
+        padding: 6px 16px 6px 6px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s;
         cursor: pointer;
         user-select: none;
+        /* 硬件加速 */
+        will-change: transform;
       }
 
       #music-container:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: scale(1.05);
+        background: rgba(255, 255, 255, 0.25);
+        transform: scale(1.05) translateY(-2px);
       }
 
-      /* 唱片旋转动画 */
+      #music-container:active {
+        transform: scale(0.95);
+      }
+
+      /* 唱片旋转动画优化 */
       .music-disc {
-        width: 35px;
-        height: 35px;
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
-        background: linear-gradient(45deg, #333, #000);
+        background: linear-gradient(45deg, #222, #444);
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 2px solid #fff;
-        animation: rotate 4s linear infinite;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        animation: rotate 5s linear infinite;
         animation-play-state: paused;
+        /* 强制硬件加速，确保动画丝滑 */
+        will-change: transform;
       }
 
       .music-disc.playing {
         animation-play-state: running;
       }
 
-      .music-disc i {
-        color: white;
-        font-size: 12px;
-      }
-
       .music-info {
-        margin-left: 10px;
-        color: white;
+        margin-left: 12px;
+        color: #fff;
         font-size: 13px;
         font-weight: 500;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        white-space: nowrap;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        letter-spacing: 0.5px;
       }
 
       @keyframes rotate {
@@ -94,21 +123,25 @@
         to { transform: rotate(360deg); }
       }
 
-      /* 隐藏原生音频控件 */
       #bg-audio { display: none; }
+
+      /* 优化主体内容加载表现 */
+      #root {
+        position: relative;
+        min-height: 100vh;
+        z-index: 1;
+      }
     </style>
   </head>
   <body>
     <div id="root"></div>
 
-    <!-- 音乐模块 HTML -->
-    <div id="music-container" onclick="toggleMusic()">
+    <div id="music-container" aria-label="播放器" role="button">
       <div id="music-disc" class="music-disc">
-        <span style="color: white; font-size: 18px;">♪</span>
+        <span style="color: white; font-size: 16px;">♪</span>
       </div>
       <div class="music-info" id="music-title">点击播放音乐</div>
-      <audio id="bg-audio" loop>
-        <!-- 替换为你自己的音乐地址（建议使用 https 直链） -->
+      <audio id="bg-audio" preload="none" loop>
         <source src="https://proxy.api.030101.xyz/files.catbox.moe/8g78ru.mp3" type="audio/mpeg">
       </audio>
     </div>
@@ -116,51 +149,59 @@
     <script type="module" src="/src/main.tsx"></script>
 
     <script>
-      // 音乐播放控制逻辑
-    // 音乐播放控制逻辑
-const audio = document.getElementById('bg-audio');
-const disc = document.getElementById('music-disc');
-const title = document.getElementById('music-title');
-let isPlaying = false;
+      const audio = document.getElementById('bg-audio');
+      const disc = document.getElementById('music-disc');
+      const title = document.getElementById('music-title');
+      const container = document.getElementById('music-container');
+      let isPlaying = false;
 
-// 统一的播放状态更新函数
-function updateUI(playing) {
-  if (playing) {
-    disc.classList.add('playing');
-    title.innerText = '正在播放音乐';
-  } else {
-    disc.classList.remove('playing');
-    title.innerText = '暂停中...';
-  }
-}
+      // 优化：使用 classList 操作减少重绘
+      function updateUI(playing) {
+        if (playing) {
+          disc.classList.add('playing');
+          title.textContent = '正在播放音乐';
+          container.style.background = 'rgba(255, 255, 255, 0.25)';
+        } else {
+          disc.classList.remove('playing');
+          title.textContent = '暂停中...';
+          container.style.background = 'rgba(255, 255, 255, 0.15)';
+        }
+      }
 
-function toggleMusic() {
-  if (isPlaying) {
-    audio.pause();
-    isPlaying = false;
-  } else {
-    audio.play().catch(e => console.log("播放被拦截"));
-    isPlaying = true;
-  }
-  updateUI(isPlaying);
-}
+      function toggleMusic() {
+        if (isPlaying) {
+          audio.pause();
+          isPlaying = false;
+        } else {
+          // 性能优化：仅在播放时开始加载音频资源
+          if (audio.preload === 'none') audio.preload = 'auto';
+          audio.play().catch(e => console.warn("播放尝试失败"));
+          isPlaying = true;
+        }
+        updateUI(isPlaying);
+      }
 
-// --- 核心逻辑：用户点击网页任何地方就开始播 ---
-window.addEventListener('click', () => {
-  // 只有在当前没在播放时才触发
-  if (!isPlaying) {
-    audio.play().then(() => {
-      isPlaying = true;
-      updateUI(true);
-      console.log("用户交互成功，音频已自动解锁播放");
-    }).catch(e => {
-      console.log("自动播放仍被拦截，需点击组件触发:", e);
-    });
-  }
-}, { once: true }); // { once: true } 极其重要：确保该监听器在第一次点击后自动销毁，不影响后续正常操作
+      // 绑定点击事件
+      container.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleMusic();
+      });
 
+      // 核心逻辑：用户首次交互即解锁音频上下文
+      const unlockAudio = () => {
+        if (!isPlaying) {
+          if (audio.preload === 'none') audio.preload = 'auto';
+          audio.play().then(() => {
+            isPlaying = true;
+            updateUI(true);
+          }).catch(() => {});
+        }
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+      };
 
-      
+      document.addEventListener('click', unlockAudio, { once: true });
+      document.addEventListener('touchstart', unlockAudio, { once: true });
     </script>
   </body>
 </html>
