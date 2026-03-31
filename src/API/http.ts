@@ -701,19 +701,31 @@ export class NavigationAPI {
       .catch(() => false);
   }
 
-  async updateSiteOrder(siteOrders: { id: number; order_num: number }[]): Promise<boolean> {
-    // 使用事务确保所有更新一起成功或失败
-    return await this.db
-      .batch(
+  // async updateSiteOrder(siteOrders: { id: number; order_num: number }[]): Promise<boolean> {
+  //   // 使用事务确保所有更新一起成功或失败
+  //   return await this.db
+  //     .batch(
+  //       siteOrders.map((item) =>
+  //         this.db
+  //           .prepare('UPDATE sites SET order_num = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  //           .bind(item.order_num, item.id)
+  //       )
+  //     )
+  //     .then(() => true)
+  //     .catch(() => false);
+  // }
+
+//优化跨组移动
+  async updateSiteOrder(siteOrders: Array<{ id: number; order_num: number; group_id: number }>) {
+    // 使用 batch 事务处理，确保数据一致性
+    return await this.db.batch(
         siteOrders.map((item) =>
-          this.db
-            .prepare('UPDATE sites SET order_num = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .bind(item.order_num, item.id)
+            this.db.prepare(
+                "UPDATE sites SET order_num = ?, group_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            ).bind(item.order_num, item.group_id, item.id)
         )
-      )
-      .then(() => true)
-      .catch(() => false);
-  }
+    ).then(() => true).catch(() => false);
+}
 
   // 导出所有数据
   async exportData(): Promise<ExportData> {
