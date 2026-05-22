@@ -16,11 +16,10 @@ import {
   Select,
   MenuItem,
   List,
-  ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Checkbox,
-  Chip,
   Divider,
   IconButton,
   Alert,
@@ -106,7 +105,7 @@ export default function BatchMoveDialog({
         <FormControl fullWidth size='small' sx={{ mb: 2 }}>
           <InputLabel>目标分组</InputLabel>
           <Select
-            value={targetGroupId}
+            value={String(targetGroupId)}
             label='目标分组'
             onChange={(e: SelectChangeEvent) => setTargetGroupId(Number(e.target.value))}
           >
@@ -131,7 +130,7 @@ export default function BatchMoveDialog({
         {/* 站点列表 */}
         <List sx={{ maxHeight: 350, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
           {sites.map((site) => (
-              <ListItem
+              <ListItemButton
                 key={site.id}
                 dense
                 component="div"
@@ -163,7 +162,7 @@ export default function BatchMoveDialog({
                 primaryTypographyProps={{ variant: 'body2', noWrap: true }}
                 secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
               />
-            </ListItem>
+            </ListItemButton>
           ))}
         </List>
 
