@@ -23,6 +23,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 
 
 interface BookmarkletGuideProps {
@@ -58,6 +59,36 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
   const handleDragCode = (e: React.MouseEvent) => {
     // 阻止默认行为，让用户拖拽
     e.preventDefault();
+  };
+
+  const handleDownload = () => {
+    // 生成一个可直接导入浏览器的书签HTML文件
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>安装书签脚本 - Navihive</title></head>
+<body style="font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center;">
+  <h1>📥 一键收藏书签脚本</h1>
+  <p style="color: #666; margin-bottom: 30px;">将下方按钮拖拽到浏览器书签栏即可安装</p>
+  <a href="${bookmarkletCode}"
+     style="display: inline-block; padding: 14px 28px; background: #1976d2; color: white;
+            text-decoration: none; border-radius: 8px; font-size: 18px; cursor: grab;
+            box-shadow: 0 2px 8px rgba(25,118,210,0.3);">
+    ⭐ 收藏到导航站
+  </a>
+  <p style="color: #999; margin-top: 30px; font-size: 14px;">
+    如果书签栏未显示，请按 Ctrl+Shift+B (Windows) 或 Cmd+Shift+B (Mac) 显示
+  </p>
+</body>
+</html>`;
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'navihive-bookmarklet.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -217,6 +248,15 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
         </Stepper>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, flexDirection: 'column', alignItems: 'stretch', gap: 1 }}>
+        <Button
+          onClick={handleDownload}
+          variant='outlined'
+          color='primary'
+          fullWidth
+          startIcon={<FileDownloadIcon />}
+        >
+          下载书签安装页（HTML）
+        </Button>
         <Button onClick={onClose} variant='contained' color='primary' fullWidth>
           完成
         </Button>

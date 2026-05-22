@@ -49,6 +49,16 @@ export default function BatchMoveDialog({
   const [targetGroupId, setTargetGroupId] = useState<number>(groups.length > 0 && groups[0]?.id ? groups[0].id : 0);
   const [moving, setMoving] = useState(false);
 
+  // 构建站点到分组的映射，用于显示当前分组
+  const siteGroupMap = new Map<number, string>();
+  for (const group of groups) {
+    for (const site of sites) {
+      if (site.group_id === group.id) {
+        siteGroupMap.set(site.id!, group.name);
+      }
+    }
+  }
+
   const handleToggleSelect = (id: number) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
@@ -158,15 +168,25 @@ export default function BatchMoveDialog({
               </ListItemIcon>
               <ListItemText
                 primary={site.name}
-                secondary={site.url}
+                secondary={
+                  <Typography variant='caption' color='text.secondary' noWrap>
+                    {site.url}
+                    <Typography
+                      component='span'
+                      variant='caption'
+                      sx={{ ml: 1, px: 0.5, borderRadius: '4px', bgcolor: 'action.selected', color: 'text.secondary' }}
+                    >
+                      {siteGroupMap.get(site.id!) || '未知分组'}
+                    </Typography>
+                  </Typography>
+                }
                 primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
               />
             </ListItemButton>
           ))}
         </List>
 
-        {selectedIds.length > 0 && targetGroupId && (
+        {selectedIds.length > 0 && targetGroupId > 0 && (
           <Alert severity='info' sx={{ mt: 2 }}>
             将 {selectedIds.length} 个站点移动到「{groups.find((g) => g.id === targetGroupId)?.name || '目标分组'}」
           </Alert>
@@ -180,7 +200,7 @@ export default function BatchMoveDialog({
           onClick={handleMove}
           variant='contained'
           color='primary'
-          disabled={selectedIds.length === 0 || !targetGroupId || moving}
+          disabled={selectedIds.length === 0 || targetGroupId === 0 || moving}
           startIcon={<DriveFileMoveIcon />}
         >
           {moving ? '移动中...' : `移动 (${selectedIds.length})`}
