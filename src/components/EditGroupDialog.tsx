@@ -46,8 +46,15 @@ const EditGroupDialog: React.FC<EditGroupDialogProps> = ({
   const handleSave = () => {
     if (!group || !name.trim()) return;
 
+    // 确保 id 存在
+    if (!group.id) {
+      console.error('分组 ID 不存在,无法保存');
+      return;
+    }
+
     onSave({
       ...group,
+      id: group.id, // 确保 id 存在
       name: name.trim(),
       is_public: isPublic ? 1 : 0, // 保存 is_public 字段
     });
