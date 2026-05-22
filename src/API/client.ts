@@ -278,6 +278,17 @@ export class NavigationClient {
     });
   }
 
+  // 移动单个站点到其他分组（跨组拖拽）
+  async moveSiteToGroup(
+    siteId: number,
+    targetGroupId: number
+  ): Promise<{ success: boolean; site?: Site }> {
+    return this.request(`sites/${siteId}/move`, {
+      method: 'PUT',
+      body: JSON.stringify({ target_group_id: targetGroupId }),
+    });
+  }
+
   // 批量移动站点
   async batchMoveSites(
     siteIds: number[],

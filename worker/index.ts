@@ -1119,6 +1119,31 @@ export default {
                     return createJsonResponse({ success: true, site }, request);
                 }
 
+                // 移动单个站点到其他分组（跨组拖拽）
+                else if (path.startsWith("sites/") && path.endsWith("/move") && method === "PUT") {
+                    const parts = path.split("/");
+                    const siteIdStr = parts[1];
+                    if (!siteIdStr) {
+                        return createJsonResponse({ error: "无效的站点ID" }, request, { status: 400 });
+                    }
+                    const siteId = parseInt(siteIdStr);
+                    if (isNaN(siteId)) {
+                        return createJsonResponse({ error: "无效的站点ID" }, request, { status: 400 });
+                    }
+
+                    const data = await validateRequestBody(request) as { target_group_id: number };
+                    if (!data.target_group_id) {
+                        return createJsonResponse(
+                            { success: false, message: '请提供目标分组ID' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    const result = await api.updateSite(siteId, { group_id: data.target_group_id });
+                    return createJsonResponse({ success: !!result, site: result }, request);
+                }
+
                 // 批量移动站点到其他分组
                 else if (path === "sites/batch-move" && method === "PUT") {
                     const data = await validateRequestBody(request) as {

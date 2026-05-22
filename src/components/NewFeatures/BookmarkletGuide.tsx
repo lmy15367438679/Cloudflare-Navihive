@@ -19,10 +19,12 @@ import {
   StepLabel,
   StepContent,
   Chip,
+  Link,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 
 interface BookmarkletGuideProps {
@@ -116,7 +118,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
                 </Box>
               </Paper>
               <Typography variant='caption' color='text.secondary' sx={{ mt: 1, display: 'block' }}>
-                如果浏览器书签栏未显示，请按 Ctrl+Shift+B (Windows) 或 Cmd+Shift+B (Mac) 显示书签栏
+                如果浏览器书签栏未显示，请按 <b>Ctrl+Shift+B</b> (Windows) 或 <b>Cmd+Shift+B</b> (Mac) 显示书签栏
               </Typography>
             </StepContent>
           </Step>
@@ -164,25 +166,60 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
               <Typography fontWeight='500'>使用方法</Typography>
             </StepLabel>
             <StepContent>
-              <Typography variant='body2' color='text.secondary'>
-                1. 确保已在导航站登录管理员账号
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>第一步：</b>确保已在导航站登录管理员账号
               </Typography>
-              <Typography variant='body2' color='text.secondary'>
-                2. 浏览任意网页时，点击书签栏的"收藏到导航站"
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>第二步：</b>浏览任意网页时，点击书签栏的"收藏到导航站"
               </Typography>
-              <Typography variant='body2' color='text.secondary'>
-                3. 页面会自动添加到导航站的默认分组中
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>第三步：</b>页面会自动添加到导航站的默认分组中
               </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>第四步：</b>在导航站编辑站点信息，调整分组和可见性
+              </Typography>
+              <Typography variant='body2' color='text.secondary' sx={{ mt: 2 }}>
                 <Chip label='提示' size='small' color='info' variant='outlined' sx={{ mr: 0.5 }} />
                 收藏成功后可在导航站编辑站点信息，调整分组和可见性
               </Typography>
             </StepContent>
           </Step>
+
+          <Step>
+            <StepLabel>
+              <Typography fontWeight='500'>常见问题</Typography>
+            </StepLabel>
+            <StepContent>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>Q：点击书签后没有反应？</b>
+              </Typography>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+                A：请确认已登录导航站管理员账号。部分浏览器可能阻止跨域请求，请检查浏览器控制台是否有错误信息。
+              </Typography>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>Q：收藏的站点出现在哪个分组？</b>
+              </Typography>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+                A：默认添加到第一个分组。收藏后可在导航站编辑站点信息，将其移动到其他分组。
+              </Typography>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>Q：如何在不同浏览器间同步书签？</b>
+              </Typography>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+                A：在每个浏览器中分别安装书签脚本即可。所有收藏都会保存到同一个导航站。
+              </Typography>
+              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+                <b>Q：书签脚本安全吗？</b>
+              </Typography>
+              <Typography variant='body2' color='text.secondary'>
+                A：脚本仅读取当前页面的标题、URL、图标和描述信息，不会读取其他数据。所有数据仅发送到您自己的导航站服务器。
+              </Typography>
+            </StepContent>
+          </Step>
         </Stepper>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} variant='contained' color='primary'>
+      <DialogActions sx={{ px: 3, pb: 3, flexDirection: 'column', alignItems: 'stretch', gap: 1 }}>
+        <Button onClick={onClose} variant='contained' color='primary' fullWidth>
           完成
         </Button>
       </DialogActions>

@@ -546,7 +546,7 @@ function App() {
     setCurrentSortingGroupId(null);
   };
 
-  // 处理拖拽结束事件
+  // 处理拖拽结束事件（分组排序）
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 

@@ -127,12 +127,14 @@ export default function EnhancedSettings({
     const audio = new Audio(url);
     audio.volume = volume;
     audio.loop = true;
-    audio.play().catch(() => {
-      // 自动播放被阻止，需要用户交互
-    });
+    // 不再自动播放，由用户点击触发
     audioRef.current = audio;
     setCurrentMusicUrl(url);
     setIsPlaying(true);
+    // 用户主动点击播放按钮时触发播放
+    audio.play().catch(() => {
+      // 自动播放被阻止，静默处理
+    });
   };
 
   const handleVolumeChange = (_: Event, newValue: number | number[]) => {

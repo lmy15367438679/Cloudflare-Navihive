@@ -46,7 +46,7 @@ export default function BatchMoveDialog({
   onBatchMove,
 }: BatchMoveDialogProps) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [targetGroupId, setTargetGroupId] = useState<number | ''>('');
+  const [targetGroupId, setTargetGroupId] = useState<number>(groups.length > 0 && groups[0]?.id ? groups[0].id : 0);
   const [moving, setMoving] = useState(false);
 
   const handleToggleSelect = (id: number) => {
@@ -64,12 +64,12 @@ export default function BatchMoveDialog({
   };
 
   const handleMove = async () => {
-    if (selectedIds.length === 0 || !targetGroupId) return;
+    if (selectedIds.length === 0 || targetGroupId === 0) return;
     setMoving(true);
     try {
       await onBatchMove(selectedIds, targetGroupId);
       setSelectedIds([]);
-      setTargetGroupId('');
+      setTargetGroupId(groups.length > 0 && groups[0]?.id ? groups[0].id : 0);
       onClose();
     } catch (err) {
       console.error('批量移动失败:', err);
@@ -80,7 +80,7 @@ export default function BatchMoveDialog({
 
   const handleClose = () => {
     setSelectedIds([]);
-    setTargetGroupId('');
+    setTargetGroupId(groups.length > 0 && groups[0]?.id ? groups[0].id : 0);
     onClose();
   };
 

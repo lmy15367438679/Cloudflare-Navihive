@@ -432,6 +432,20 @@ export class MockNavigationClient {
     return { success: true, site: newSite };
   }
 
+  // 移动单个站点到其他分组（跨组拖拽）
+  async moveSiteToGroup(
+    siteId: number,
+    targetGroupId: number
+  ): Promise<{ success: boolean; site?: Site }> {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const site = mockSites.find((s) => s.id === siteId);
+    if (site) {
+      site.group_id = targetGroupId;
+      return { success: true, site };
+    }
+    return { success: false };
+  }
+
   // 批量移动站点
   async batchMoveSites(
     siteIds: number[],
