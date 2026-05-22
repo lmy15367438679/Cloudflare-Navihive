@@ -1878,8 +1878,17 @@ function App() {
             onBatchMove={async (siteIds, targetGroupId) => {
               try {
                 setLoading(true);
-                // 调用后台 API 执行批量移动
-                await api.batchMoveSites(siteIds, targetGroupId);
+
+                // 强制将数据转换为严格的 number 类型，避免 string 类型的 ID 传入导致校验失败
+                const numericSiteIds = siteIds.map((id) => Number(id)).filter((id) => !isNaN(id));
+                const numericGroupId = Number(targetGroupId);
+
+                if (numericSiteIds.length === 0 || isNaN(numericGroupId)) {
+                  throw new Error('未选择有效的站点或目标分组');
+                }
+
+                // 调用后台 API 执行批量移动（client.ts 中已使用下划线命名格式发送）
+                await api.batchMoveSites(numericSiteIds, numericGroupId);
                 // 刷新内存中的状态以展示最新布局
                 await fetchData();
                 // 成功后主动关闭弹窗并提示用户
