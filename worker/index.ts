@@ -1081,8 +1081,9 @@ export default {
                     let groupId = data.group_id;
                     if (!groupId) {
                         const groups = await api.getGroups();
-                        if (groups.length > 0) {
-                            groupId = groups[0].id;
+                        const firstGroup = groups.length > 0 ? groups[0] : null;
+                        if (firstGroup && firstGroup.id) {
+                            groupId = firstGroup.id;
                         } else {
                             // 创建默认分组
                             const defaultGroup = await api.createGroup({
@@ -1090,9 +1091,10 @@ export default {
                                 order_num: 0,
                                 is_public: 1,
                             });
-                            groupId = defaultGroup.id;
+                            groupId = defaultGroup.id!;
                         }
                     }
+
 
                     // 自动获取图标
                     let icon = data.icon || '';

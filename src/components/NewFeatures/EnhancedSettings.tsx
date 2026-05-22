@@ -22,11 +22,6 @@ import {
   Chip,
   Alert,
   Paper,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  SelectChangeEvent,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
@@ -35,8 +30,8 @@ import AnimationIcon from '@mui/icons-material/Animation';
 import SpeedIcon from '@mui/icons-material/Speed';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-import SkipNextIcon from '@mui/icons-material/SkipNext';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+
 
 interface TabPanelProps {
   children?: React.ReactNode;

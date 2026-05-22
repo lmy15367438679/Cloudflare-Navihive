@@ -131,13 +131,15 @@ export default function BatchMoveDialog({
         {/* 站点列表 */}
         <List sx={{ maxHeight: 350, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
           {sites.map((site) => (
-            <ListItem
-              key={site.id}
-              dense
-              button
-              onClick={() => site.id && handleToggleSelect(site.id)}
-              selected={site.id ? selectedIds.includes(site.id) : false}
-            >
+              <ListItem
+                key={site.id}
+                dense
+                component="div"
+                onClick={() => site.id && handleToggleSelect(site.id)}
+                selected={site.id ? selectedIds.includes(site.id) : false}
+                sx={{ cursor: 'pointer' }}
+              >
+
               <ListItemIcon sx={{ minWidth: 36 }}>
                 <Checkbox
                   edge='start'
