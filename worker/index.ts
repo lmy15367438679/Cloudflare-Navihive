@@ -1020,8 +1020,135 @@ export default {
                     return createJsonResponse(result, request);
                 }
 
+                // ========== 新增功能 API ==========
+
+                // 链接检测 API - 批量检测站点链接可用性
+                else if (path === "check-links" && method === "POST") {
+                    const data = await validateRequestBody(request) as { urls: string[] };
+                    
+                    if (!data.urls || !Array.isArray(data.urls) || data.urls.length === 0) {
+                        return createJsonResponse(
+                            { success: false, message: '请提供要检测的URL列表' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    // 限制每次检测数量，防止超出免费额度
+                    const MAX_CHECK = 20;
+                    const urlsToCheck = data.urls.slice(0, MAX_CHECK);
+
+                    // 并发检测，但限制并发数避免超限
+                    const results = await checkLinksConcurrent(urlsToCheck, 5);
+                    
+                    return createJsonResponse({ success: true, results }, request);
+                }
+
+                // 书签脚本添加站点 API - 支持跨域
+                else if (path === "bookmarklet/add" && method === "POST") {
+                    const data = await validateRequestBody(request) as {
+                        name: string;
+                        url: string;
+                        icon?: string;
+                        description?: string;
+                        group_id?: number;
+                    };
+
+                    if (!data.name || !data.url) {
+                        return createJsonResponse(
+                            { success: false, message: '站点名称和URL不能为空' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    // 验证URL
+                    let url = data.url.trim();
+                    if (!/^https?:\/\//i.test(url)) {
+                        url = 'https://' + url;
+                    }
+                    try {
+                        new URL(url);
+                    } catch {
+                        return createJsonResponse(
+                            { success: false, message: '无效的URL格式' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    // 如果没有指定分组，使用第一个分组或创建默认分组
+                    let groupId = data.group_id;
+                    if (!groupId) {
+                        const groups = await api.getGroups();
+                        if (groups.length > 0) {
+                            groupId = groups[0].id;
+                        } else {
+                            // 创建默认分组
+                            const defaultGroup = await api.createGroup({
+                                name: '书签导入',
+                                order_num: 0,
+                                is_public: 1,
+                            });
+                            groupId = defaultGroup.id;
+                        }
+                    }
+
+                    // 自动获取图标
+                    let icon = data.icon || '';
+                    if (!icon) {
+                        try {
+                            const domain = new URL(url).hostname;
+                            icon = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
+                        } catch {}
+                    }
+
+                    const site = await api.createSite({
+                        group_id: groupId!,
+                        name: data.name,
+                        url: url,
+                        icon: icon,
+                        description: data.description || '',
+                        notes: '',
+                        order_num: 0,
+                        is_public: 1,
+                    });
+
+                    return createJsonResponse({ success: true, site }, request);
+                }
+
+                // 批量移动站点到其他分组
+                else if (path === "sites/batch-move" && method === "PUT") {
+                    const data = await validateRequestBody(request) as {
+                        site_ids: number[];
+                        target_group_id: number;
+                    };
+
+                    if (!data.site_ids || !Array.isArray(data.site_ids) || data.site_ids.length === 0) {
+                        return createJsonResponse(
+                            { success: false, message: '请提供要移动的站点ID列表' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    if (!data.target_group_id) {
+                        return createJsonResponse(
+                            { success: false, message: '请提供目标分组ID' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    // 批量更新站点分组
+                    const results = await api.batchMoveSites(data.site_ids, data.target_group_id);
+                    
+                    return createJsonResponse({ success: true, moved: results }, request);
+                }
+
                 // 默认返回404
                 return createResponse("API路径不存在", request, { status: 404 });
+
             } catch (error) {
                 return createErrorResponse(error, request, 'API 请求');
             }
@@ -1273,3 +1400,68 @@ interface D1Result<T = unknown> {
     error?: string;
     meta?: any;
 }
+
+// ========== 新增辅助函数 ==========
+
+/**
+ * 链接检测结果接口
+ */
+interface LinkCheckResult {
+    url: string;
+    status: 'ok' | 'redirect' | 'error' | 'timeout';
+    statusCode?: number;
+    error?: string;
+    duration?: number;
+}
+
+/**
+ * 并发检测链接可用性（限制并发数）
+ */
+async function checkLinksConcurrent(urls: string[], concurrency: number = 5): Promise<LinkCheckResult[]> {
+    const results: LinkCheckResult[] = [];
+    const queue = [...urls];
+    
+    async function worker(): Promise<void> {
+        while (queue.length > 0) {
+            const url = queue.shift();
+            if (!url) continue;
+            
+            const startTime = Date.now();
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+                
+                const response = await fetch(url, {
+                    method: 'HEAD',
+                    signal: controller.signal,
+                    redirect: 'manual', // 不自动跟随重定向，手动处理
+                });
+                
+                clearTimeout(timeoutId);
+                const duration = Date.now() - startTime;
+                
+                if (response.status >= 200 && response.status < 300) {
+                    results.push({ url, status: 'ok', statusCode: response.status, duration });
+                } else if (response.status >= 300 && response.status < 400) {
+                    results.push({ url, status: 'redirect', statusCode: response.status, duration });
+                } else {
+                    results.push({ url, status: 'error', statusCode: response.status, duration });
+                }
+            } catch (error: any) {
+                const duration = Date.now() - startTime;
+                if (error.name === 'AbortError') {
+                    results.push({ url, status: 'timeout', error: '请求超时', duration });
+                } else {
+                    results.push({ url, status: 'error', error: error.message || '未知错误', duration });
+                }
+            }
+        }
+    }
+    
+    // 启动并发 workers
+    const workers = Array(concurrency).fill(null).map(() => worker());
+    await Promise.all(workers);
+    
+    return results;
+}
+

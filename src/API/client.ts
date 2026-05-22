@@ -253,4 +253,40 @@ export class NavigationClient {
     });
     return response;
   }
+
+  // ========== 新增功能 API ==========
+
+  // 链接检测
+  async checkLinks(urls: string[]): Promise<{ success: boolean; results: any[] }> {
+    return this.request('check-links', {
+      method: 'POST',
+      body: JSON.stringify({ urls }),
+    });
+  }
+
+  // 书签脚本添加站点
+  async bookmarkletAdd(data: {
+    name: string;
+    url: string;
+    icon?: string;
+    description?: string;
+    group_id?: number;
+  }): Promise<{ success: boolean; site?: Site; message?: string }> {
+    return this.request('bookmarklet/add', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // 批量移动站点
+  async batchMoveSites(
+    siteIds: number[],
+    targetGroupId: number
+  ): Promise<{ success: boolean; moved: number }> {
+    return this.request('sites/batch-move', {
+      method: 'PUT',
+      body: JSON.stringify({ site_ids: siteIds, target_group_id: targetGroupId }),
+    });
+  }
 }
+

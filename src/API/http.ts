@@ -869,6 +869,21 @@ export class NavigationAPI {
       .first<Site>();
     return result;
   }
+
+  // 批量移动站点到其他分组
+  async batchMoveSites(siteIds: number[], targetGroupId: number): Promise<number> {
+    try {
+      const result = await this.db
+        .prepare('UPDATE sites SET group_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (' + siteIds.map(() => '?').join(',') + ')')
+        .bind(targetGroupId, ...siteIds)
+        .run();
+      return result.success ? siteIds.length : 0;
+    } catch (error) {
+      console.error('批量移动站点失败:', error);
+      return 0;
+    }
+  }
+
 }
 
 // 创建 API 辅助函数

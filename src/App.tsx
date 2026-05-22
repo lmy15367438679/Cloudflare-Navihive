@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { NavigationClient } from './API/client';
 import { MockNavigationClient } from './API/mock';
 import { Site, Group } from './API/http';
@@ -7,6 +7,10 @@ import ThemeToggle from './components/ThemeToggle';
 import GroupCard from './components/GroupCard';
 import LoginForm from './components/LoginForm';
 import SearchBox from './components/SearchBox';
+import LinkChecker from './components/NewFeatures/LinkChecker';
+import BookmarkletGuide from './components/NewFeatures/BookmarkletGuide';
+import BatchMoveDialog from './components/NewFeatures/BatchMoveDialog';
+import EnhancedSettings from './components/NewFeatures/EnhancedSettings';
 import { sanitizeCSS, isSecureUrl, extractDomain } from './utils/url';
 import { SearchResultItem } from './utils/search';
 import './App.css';
@@ -70,6 +74,11 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import LinkIcon from '@mui/icons-material/Link';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
+import PaletteIcon from '@mui/icons-material/Palette';
+
 
 // 根据环境选择使用真实API还是模拟API
 const isDevEnvironment = import.meta.env.DEV;
@@ -202,6 +211,13 @@ function App() {
   // 导入结果提示框状态
   const [importResultOpen, setImportResultOpen] = useState(false);
   const [importResultMessage, setImportResultMessage] = useState('');
+
+  // ========== 新增功能状态 ==========
+  const [openLinkChecker, setOpenLinkChecker] = useState(false);
+  const [openBookmarklet, setOpenBookmarklet] = useState(false);
+  const [openBatchMove, setOpenBatchMove] = useState(false);
+  const [openEnhancedSettings, setOpenEnhancedSettings] = useState(false);
+
 
   // 菜单打开关闭
   const handleMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1115,6 +1131,32 @@ function App() {
                           <ListItemText>网站设置</ListItemText>
                         </MenuItem>
                         <Divider />
+                        {/* ===== 新增功能菜单项 ===== */}
+                        <MenuItem onClick={() => { handleMenuClose(); setOpenLinkChecker(true); }}>
+                          <ListItemIcon>
+                            <LinkIcon fontSize='small' />
+                          </ListItemIcon>
+                          <ListItemText>链接检测</ListItemText>
+                        </MenuItem>
+                        <MenuItem onClick={() => { handleMenuClose(); setOpenBookmarklet(true); }}>
+                          <ListItemIcon>
+                            <BookmarkIcon fontSize='small' />
+                          </ListItemIcon>
+                          <ListItemText>一键收藏</ListItemText>
+                        </MenuItem>
+                        <MenuItem onClick={() => { handleMenuClose(); setOpenBatchMove(true); }}>
+                          <ListItemIcon>
+                            <DriveFileMoveIcon fontSize='small' />
+                          </ListItemIcon>
+                          <ListItemText>批量移动</ListItemText>
+                        </MenuItem>
+                        <MenuItem onClick={() => { handleMenuClose(); setOpenEnhancedSettings(true); }}>
+                          <ListItemIcon>
+                            <PaletteIcon fontSize='small' />
+                          </ListItemIcon>
+                          <ListItemText>个性化设置</ListItemText>
+                        </MenuItem>
+                        <Divider />
                         <MenuItem onClick={handleExportData}>
                           <ListItemIcon>
                             <FileDownloadIcon fontSize='small' />
@@ -1138,6 +1180,7 @@ function App() {
                             </MenuItem>
                           </>
                         )}
+
                       </Menu>
                     </>
                   )}
@@ -1774,7 +1817,53 @@ function App() {
             </DialogActions>
           </Dialog>
 
+          {/* ===== 新增功能对话框 ===== */}
+
+          {/* 链接检测对话框 */}
+          <LinkChecker
+            open={openLinkChecker}
+            onClose={() => setOpenLinkChecker(false)}
+            sites={groups.flatMap((g) => g.sites || [])}
+          />
+
+          {/* 一键收藏引导对话框 */}
+          <BookmarkletGuide
+            open={openBookmarklet}
+            onClose={() => setOpenBookmarklet(false)}
+          />
+
+          {/* 批量移动对话框 */}
+          <BatchMoveDialog
+            open={openBatchMove}
+            onClose={() => setOpenBatchMove(false)}
+            sites={groups.flatMap((g) => g.sites || [])}
+            groups={groups.map((g) => ({
+              id: g.id,
+              name: g.name,
+              order_num: g.order_num,
+              is_public: g.is_public,
+              created_at: g.created_at,
+              updated_at: g.updated_at,
+            }))}
+            onBatchMove={async (siteIds, targetGroupId) => {
+              await api.batchMoveSites(siteIds, targetGroupId);
+              await fetchData();
+            }}
+          />
+
+          {/* 个性化设置对话框 */}
+          <EnhancedSettings
+            open={openEnhancedSettings}
+            onClose={() => setOpenEnhancedSettings(false)}
+            configs={configs}
+            onSaveConfig={async (key, value) => {
+              await api.setConfig(key, value);
+              setConfigs((prev) => ({ ...prev, [key]: value }));
+            }}
+          />
+
           {/* GitHub角标 - 在移动端调整位置 */}
+
           <Box
             sx={{
               position: 'fixed',

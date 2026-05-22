@@ -391,8 +391,67 @@ export class MockNavigationClient {
     };
   }
 
+  // ========== 新增功能 API ==========
+
+  // 链接检测
+  async checkLinks(urls: string[]): Promise<{ success: boolean; results: any[] }> {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    // 模拟检测结果
+    const results = urls.map((url) => ({
+      url,
+      status: Math.random() > 0.2 ? 'ok' as const : 'error' as const,
+      statusCode: Math.random() > 0.2 ? 200 : 404,
+      duration: Math.floor(Math.random() * 500) + 100,
+    }));
+    return { success: true, results };
+  }
+
+  // 书签脚本添加站点
+  async bookmarkletAdd(data: {
+    name: string;
+    url: string;
+    icon?: string;
+    description?: string;
+    group_id?: number;
+  }): Promise<{ success: boolean; site?: Site; message?: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const newSite: Site = {
+      id: Math.max(0, ...mockSites.map((s) => s.id || 0)) + 1,
+      group_id: data.group_id || 1,
+      name: data.name,
+      url: data.url,
+      icon: data.icon || '',
+      description: data.description || '',
+      notes: '',
+      order_num: mockSites.filter((s) => s.group_id === (data.group_id || 1)).length,
+      is_public: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    mockSites.push(newSite);
+    return { success: true, site: newSite };
+  }
+
+  // 批量移动站点
+  async batchMoveSites(
+    siteIds: number[],
+    targetGroupId: number
+  ): Promise<{ success: boolean; moved: number }> {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    let moved = 0;
+    for (const siteId of siteIds) {
+      const site = mockSites.find((s) => s.id === siteId);
+      if (site) {
+        site.group_id = targetGroupId;
+        moved++;
+      }
+    }
+    return { success: true, moved };
+  }
+
   // 数据导入
   async importData(data: ExportData): Promise<ImportResult> {
+
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     try {
