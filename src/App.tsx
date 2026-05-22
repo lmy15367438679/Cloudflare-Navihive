@@ -1874,6 +1874,31 @@ function App() {
               await api.setConfig(key, value);
               setConfigs((prev) => ({ ...prev, [key]: value }));
             }}
+            onMusicPlay={(url) => {
+              if (!url) {
+                // 停止音乐
+                if (globalAudioRef.current) {
+                  globalAudioRef.current.pause();
+                  globalAudioRef.current = null;
+                }
+                setGlobalMusicPlaying(false);
+                setGlobalMusicUrl('');
+                setShowMusicPlayer(false);
+                return;
+              }
+              // 播放音乐
+              if (globalAudioRef.current) {
+                globalAudioRef.current.pause();
+              }
+              const audio = new Audio(url);
+              audio.volume = globalVolume;
+              audio.loop = true;
+              audio.play().catch(() => {});
+              globalAudioRef.current = audio;
+              setGlobalMusicPlaying(true);
+              setGlobalMusicUrl(url);
+              setShowMusicPlayer(true);
+            }}
           />
 
           {/* 右下角固定按钮组 */}

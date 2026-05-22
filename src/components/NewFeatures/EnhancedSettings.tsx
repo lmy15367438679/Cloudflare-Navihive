@@ -52,6 +52,7 @@ interface EnhancedSettingsProps {
   onClose: () => void;
   configs: Record<string, string>;
   onSaveConfig: (key: string, value: string) => Promise<void>;
+  onMusicPlay?: (url: string) => void; // 通知全局播放器播放音乐
 }
 
 // 预设壁纸列表
@@ -79,6 +80,7 @@ export default function EnhancedSettings({
   onClose,
   configs,
   onSaveConfig,
+  onMusicPlay,
 }: EnhancedSettingsProps) {
   const [tabValue, setTabValue] = useState(0);
   const [tempConfigs, setTempConfigs] = useState<Record<string, string>>({});
@@ -97,7 +99,7 @@ export default function EnhancedSettings({
     }
   }, [open, configs]);
 
-  // 音乐播放控制
+  // 音乐播放控制 - 通知全局播放器
   const handlePlayMusic = (url: string) => {
     if (!url) {
       if (audioRef.current) {
@@ -106,35 +108,19 @@ export default function EnhancedSettings({
       }
       setIsPlaying(false);
       setCurrentMusicUrl('');
+      // 通知全局播放器停止
+      if (onMusicPlay) onMusicPlay('');
       return;
     }
 
-    if (audioRef.current && currentMusicUrl === url) {
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        audioRef.current.play().catch(() => {});
-        setIsPlaying(true);
-      }
-      return;
+    // 通知全局播放器播放
+    if (onMusicPlay) {
+      onMusicPlay(url);
     }
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-
-    const audio = new Audio(url);
-    audio.volume = volume;
-    audio.loop = true;
-    // 不再自动播放，由用户点击触发
-    audioRef.current = audio;
+    
+    // 本地也更新状态用于UI显示
     setCurrentMusicUrl(url);
     setIsPlaying(true);
-    // 用户主动点击播放按钮时触发播放
-    audio.play().catch(() => {
-      // 自动播放被阻止，静默处理
-    });
   };
 
   const handleVolumeChange = (_: Event, newValue: number | number[]) => {

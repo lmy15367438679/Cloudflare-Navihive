@@ -1,9 +1,8 @@
 /**
  * 一键收藏（浏览器书签脚本）引导组件
- * 提供书签脚本安装和使用说明
- * 书签脚本适配 Navihive 导航站，支持选择分组、自动获取图标
+ * 简化版：留出上传书签URL的地方，主要解决一键收藏功能
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -16,23 +15,16 @@ import {
   Divider,
   IconButton,
   Alert,
+  TextField,
   Stepper,
   Step,
   StepLabel,
   StepContent,
-  Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormHelperText,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import { NavigationClient } from '../../API/client';
-import { Group } from '../../API/http';
 
 interface BookmarkletGuideProps {
   open: boolean;
@@ -41,45 +33,24 @@ interface BookmarkletGuideProps {
 }
 
 export default function BookmarkletGuide({ open, onClose, siteUrl = window.location.origin }: BookmarkletGuideProps) {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [defaultGroupId, setDefaultGroupId] = useState<number | ''>('');
-  const [loading, setLoading] = useState(false);
+  // 允许用户自定义导航站URL
+  const [customUrl, setCustomUrl] = useState(siteUrl);
 
-  // 加载分组列表
-  useEffect(() => {
-    if (open) {
-      setLoading(true);
-      const api = new NavigationClient(siteUrl + '/api');
-      api.getGroups()
-        .then((data) => {
-          setGroups(data);
-          if (data.length > 0 && data[0]?.id) {
-            setDefaultGroupId(data[0].id);
-          }
-          setLoading(false);
-        })
-        .catch(() => {
-          setLoading(false);
-        });
-    }
-  }, [open, siteUrl]);
-
-  // 生成书签脚本代码 - 适配 Navihive 导航站
+  // 生成书签脚本代码 - 简化版，只做一键收藏
   const bookmarkletCode = `javascript:(function(){
   const t=document.title;
   const u=window.location.href;
   const i=(document.querySelector('link[rel*="icon"]')||document.querySelector('link[rel="shortcut icon"]'))?.href||'';
   const d=document.querySelector('meta[name="description"]')?.content||'';
-  const g=${defaultGroupId || 1};
-  fetch('${siteUrl}/api/bookmarklet/add',{
+  fetch('${customUrl}/api/bookmarklet/add',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     credentials:'include',
-    body:JSON.stringify({name:t,url:u,icon:i,description:d,group_id:g})
+    body:JSON.stringify({name:t,url:u,icon:i,description:d})
   }).then(r=>r.json()).then(d=>{
     if(d.success){
-      if(confirm('✓ 已收藏: '+d.site.name+'\\n点击确定跳转到导航站编辑')){window.location='${siteUrl}';}
-    }else{alert('✗ 收藏失败: '+(d.message||'请先登录'));}
+      alert('✓ 已收藏: '+d.site.name);
+    }else{alert('✗ 收藏失败: '+(d.message||'请先登录导航站'));}
   }).catch(()=>alert('✗ 请求失败，请确认已登录导航站'));
 })();`;
 
@@ -89,14 +60,10 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
     });
   };
 
-  const handleDragCode = (e: React.MouseEvent) => {
-    e.preventDefault();
-  };
-
   const handleDownload = () => {
     const htmlContent = `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>安装书签脚本 - Navihive</title></head>
+<head><meta charset="UTF-8"><title>安装书签脚本 - 导航站</title></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; background: #f5f5f5;">
   <div style="background: white; border-radius: 16px; padding: 40px 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
     <h1 style="font-size: 24px; margin: 0 0 8px;">📥 一键收藏书签脚本</h1>
@@ -152,28 +119,22 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
           安装书签脚本后，浏览任何网页时点击书签即可一键收藏到导航站。
         </Alert>
 
-        {/* 默认分组选择 */}
+        {/* 导航站URL设置 - 留出上传书签URL的地方 */}
         <Paper variant='outlined' sx={{ p: 2, mb: 3, borderRadius: 2 }}>
           <Typography variant='subtitle2' gutterBottom fontWeight='600'>
-            📂 收藏到哪个分组？
+            🌐 导航站地址
           </Typography>
-          <FormControl fullWidth size='small' disabled={loading || groups.length === 0}>
-            <InputLabel>默认分组</InputLabel>
-            <Select
-              value={defaultGroupId}
-              label='默认分组'
-              onChange={(e) => setDefaultGroupId(e.target.value as number)}
-            >
-              {groups.map((g) => (
-                <MenuItem key={g.id} value={g.id || ''}>
-                  {g.name}
-                </MenuItem>
-              ))}
-            </Select>
-            <FormHelperText>
-              书签收藏的站点将默认添加到该分组，收藏后可在导航站中移动
-            </FormHelperText>
-          </FormControl>
+          <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+            如果书签脚本收藏的导航站地址不正确，请在此修改：
+          </Typography>
+          <TextField
+            fullWidth
+            size='small'
+            value={customUrl}
+            onChange={(e) => setCustomUrl(e.target.value)}
+            placeholder='https://your-navihive.pages.dev'
+            helperText='修改后书签脚本代码会自动更新'
+          />
         </Paper>
 
         <Stepper orientation='vertical' activeStep={-1}>
@@ -203,7 +164,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
                 }}
                 component='a'
                 href={bookmarkletCode}
-                onClick={handleDragCode}
+                onClick={(e) => e.preventDefault()}
               >
                 <Box display='flex' alignItems='center' justifyContent='center' gap={1}>
                   <BookmarkIcon />
@@ -266,46 +227,10 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
                 <b>第二步：</b>浏览任意网页时，点击书签栏的"收藏到导航站"
               </Typography>
               <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                <b>第三步：</b>收藏成功后弹出提示，点击"确定"可跳回导航站编辑
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                <b>第四步：</b>在导航站编辑站点信息，调整分组和可见性
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mt: 2 }}>
-                <Chip label='提示' size='small' color='info' variant='outlined' sx={{ mr: 0.5 }} />
-                书签脚本会自动获取网页标题、URL、图标和描述信息
-              </Typography>
-            </StepContent>
-          </Step>
-
-          <Step>
-            <StepLabel>
-              <Typography fontWeight='500'>常见问题</Typography>
-            </StepLabel>
-            <StepContent>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                <b>Q：点击书签后没有反应？</b>
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                A：请确认已登录导航站管理员账号。部分浏览器可能阻止跨域请求，请检查浏览器控制台是否有错误信息。
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                <b>Q：收藏的站点出现在哪个分组？</b>
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                A：默认添加到上方选择的"默认分组"。收藏后可在导航站编辑站点信息，将其移动到其他分组。
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                <b>Q：如何在不同浏览器间同步书签？</b>
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                A：在每个浏览器中分别安装书签脚本即可。所有收藏都会保存到同一个导航站。
-              </Typography>
-              <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                <b>Q：书签脚本安全吗？</b>
+                <b>第三步：</b>收藏成功后弹出提示，站点将添加到导航站
               </Typography>
               <Typography variant='body2' color='text.secondary'>
-                A：脚本仅读取当前页面的标题、URL、图标和描述信息，不会读取其他数据。所有数据仅发送到您自己的导航站服务器。
+                <b>第四步：</b>在导航站编辑站点信息，调整分组和可见性
               </Typography>
             </StepContent>
           </Step>
