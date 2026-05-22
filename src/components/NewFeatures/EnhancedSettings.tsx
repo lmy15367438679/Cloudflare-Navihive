@@ -145,15 +145,13 @@ export default function EnhancedSettings({
     }
   };
 
-  // 清理音频
+  // 关闭对话框时不清理音频，让全局播放器接管
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      // 不清理音频，让全局播放器继续播放
     };
   }, []);
+
 
   const handleConfigChange = (key: string, value: string) => {
     setTempConfigs((prev) => ({ ...prev, [key]: value }));

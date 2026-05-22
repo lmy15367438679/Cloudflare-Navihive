@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+
 import { NavigationClient } from './API/client';
 import { MockNavigationClient } from './API/mock';
 import { Site, Group } from './API/http';
@@ -78,6 +79,11 @@ import LinkIcon from '@mui/icons-material/Link';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import PaletteIcon from '@mui/icons-material/Palette';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PauseIcon from '@mui/icons-material/Pause';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+
 
 
 // 根据环境选择使用真实API还是模拟API
@@ -217,6 +223,14 @@ function App() {
   const [openBookmarklet, setOpenBookmarklet] = useState(false);
   const [openBatchMove, setOpenBatchMove] = useState(false);
   const [openEnhancedSettings, setOpenEnhancedSettings] = useState(false);
+
+  // ========== 全局音乐播放器状态 ==========
+  const globalAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [globalMusicPlaying, setGlobalMusicPlaying] = useState(false);
+  const [globalMusicUrl, setGlobalMusicUrl] = useState('');
+  const [globalVolume, setGlobalVolume] = useState(0.5);
+  const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+
 
 
   // 菜单打开关闭
@@ -1862,16 +1876,133 @@ function App() {
             }}
           />
 
-          {/* GitHub角标 - 在移动端调整位置 */}
-
+          {/* 右下角固定按钮组 */}
           <Box
             sx={{
               position: 'fixed',
               bottom: { xs: 8, sm: 16 },
               right: { xs: 8, sm: 16 },
               zIndex: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              alignItems: 'flex-end',
             }}
           >
+            {/* 全局音乐播放器迷你控制条 */}
+            {showMusicPlayer && globalMusicUrl && (
+              <Paper
+                elevation={3}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  p: '4px 8px',
+                  borderRadius: 10,
+                  bgcolor: 'background.paper',
+                  mb: 0.5,
+                }}
+              >
+                <IconButton
+                  size='small'
+                  onClick={() => {
+                    if (globalAudioRef.current) {
+                      if (globalMusicPlaying) {
+                        globalAudioRef.current.pause();
+                        setGlobalMusicPlaying(false);
+                      } else {
+                        globalAudioRef.current.play().catch(() => {});
+                        setGlobalMusicPlaying(true);
+                      }
+                    }
+                  }}
+                  sx={{ width: 28, height: 28 }}
+                >
+                  {globalMusicPlaying ? <PauseIcon fontSize='small' /> : <PlayArrowIcon fontSize='small' />}
+                </IconButton>
+                <VolumeUpIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                <Slider
+                  value={globalVolume}
+                  onChange={(_, v) => {
+                    const vol = v as number;
+                    setGlobalVolume(vol);
+                    if (globalAudioRef.current) {
+                      globalAudioRef.current.volume = vol;
+                    }
+                  }}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  sx={{
+                    width: 60,
+                    height: 4,
+                    '& .MuiSlider-thumb': { width: 12, height: 12 },
+                  }}
+                />
+                <IconButton
+                  size='small'
+                  onClick={() => {
+                    if (globalAudioRef.current) {
+                      globalAudioRef.current.pause();
+                      globalAudioRef.current = null;
+                    }
+                    setGlobalMusicPlaying(false);
+                    setGlobalMusicUrl('');
+                    setShowMusicPlayer(false);
+                  }}
+                  sx={{ width: 20, height: 20 }}
+                >
+                  <CloseIcon fontSize='small' />
+                </IconButton>
+              </Paper>
+            )}
+
+            {/* 音乐播放器开关按钮 */}
+            {configs['site.musicUrl'] && !showMusicPlayer && (
+              <Paper
+                elevation={2}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  p: '4px 8px',
+                  borderRadius: 10,
+                  bgcolor: 'background.paper',
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+                onClick={() => {
+                  const musicUrl = configs['site.musicUrl'];
+                  if (!musicUrl) return;
+                  
+                  // 创建或恢复音频
+                  if (!globalAudioRef.current) {
+                    const audio = new Audio(musicUrl);
+                    audio.volume = globalVolume;
+                    audio.loop = true;
+                    audio.play().catch(() => {});
+                    globalAudioRef.current = audio;
+                    setGlobalMusicPlaying(true);
+                  } else if (globalAudioRef.current.src !== musicUrl) {
+                    globalAudioRef.current.pause();
+                    const audio = new Audio(musicUrl);
+                    audio.volume = globalVolume;
+                    audio.loop = true;
+                    audio.play().catch(() => {});
+                    globalAudioRef.current = audio;
+                    setGlobalMusicPlaying(true);
+                  } else {
+                    globalAudioRef.current.play().catch(() => {});
+                    setGlobalMusicPlaying(true);
+                  }
+                  setGlobalMusicUrl(musicUrl);
+                  setShowMusicPlayer(true);
+                }}
+              >
+                <MusicNoteIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+              </Paper>
+            )}
+
+            {/* GitHub角标 */}
             <Paper
               component='a'
               href='https://github.com/zqq-nuli/Navihive'
@@ -1897,6 +2028,7 @@ function App() {
               <GitHubIcon />
             </Paper>
           </Box>
+
         </Container>
       </Box>
     </ThemeProvider>
