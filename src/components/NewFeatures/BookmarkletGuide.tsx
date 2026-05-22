@@ -1,6 +1,7 @@
 /**
  * 一键收藏（浏览器书签脚本）引导组件
- * 简化版：留出上传书签URL的地方，主要解决一键收藏功能
+ * 使用 window.open 弹窗交互模式，彻底解决 CSP 安全阻断问题
+ * 用户可在弹窗中选择分组、修改标题等
  */
 import { useState } from 'react';
 import {
@@ -36,22 +37,14 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
   // 允许用户自定义导航站URL
   const [customUrl, setCustomUrl] = useState(siteUrl);
 
-  // 生成书签脚本代码 - 简化版，只做一键收藏
+  // 核心优化：生成基于 window.open 的书签脚本，绕过 CSP 限制并支持交互式弹窗选择
   const bookmarkletCode = `javascript:(function(){
   const t=document.title;
   const u=window.location.href;
   const i=(document.querySelector('link[rel*="icon"]')||document.querySelector('link[rel="shortcut icon"]'))?.href||'';
   const d=document.querySelector('meta[name="description"]')?.content||'';
-  fetch('${customUrl}/api/bookmarklet/add',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    credentials:'include',
-    body:JSON.stringify({name:t,url:u,icon:i,description:d})
-  }).then(r=>r.json()).then(d=>{
-    if(d.success){
-      alert('✓ 已收藏: '+d.site.name);
-    }else{alert('✗ 收藏失败: '+(d.message||'请先登录导航站'));}
-  }).catch(()=>alert('✗ 请求失败，请确认已登录导航站'));
+  const popup=window.open('${customUrl}/?add_bookmark=true&title='+encodeURIComponent(t)+'&url='+encodeURIComponent(u)+'&icon='+encodeURIComponent(i)+'&description='+encodeURIComponent(d),'navihive_bookmarklet','width=520,height=600,scrollbars=yes,resizable=yes');
+  if(!popup){alert('✗ 弹出窗口被阻止，请允许此网站的弹出式窗口！');}
 })();`;
 
   const handleCopyCode = () => {
@@ -116,16 +109,16 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
       <Divider />
       <DialogContent>
         <Alert severity='info' sx={{ mb: 3 }}>
-          安装书签脚本后，浏览任何网页时点击书签即可一键收藏到导航站。
+          安装一键收藏脚本后，浏览任何网页时，只需点击此书签即可弹窗选择分组并快捷添加至您的导航站。
         </Alert>
 
-        {/* 导航站URL设置 - 留出上传书签URL的地方 */}
+        {/* 导航站URL设置 */}
         <Paper variant='outlined' sx={{ p: 2, mb: 3, borderRadius: 2 }}>
           <Typography variant='subtitle2' gutterBottom fontWeight='600'>
             🌐 导航站地址
           </Typography>
           <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-            如果书签脚本收藏的导航站地址不正确，请在此修改：
+            如果书签脚本需要关联非当前域名，请在此处修改：
           </Typography>
           <TextField
             fullWidth
@@ -133,7 +126,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
             value={customUrl}
             onChange={(e) => setCustomUrl(e.target.value)}
             placeholder='https://your-navihive.pages.dev'
-            helperText='修改后书签脚本代码会自动更新'
+            helperText='修改后下方的拖拽按钮和脚本代码将自动更新'
           />
         </Paper>
 
@@ -144,7 +137,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
             </StepLabel>
             <StepContent>
               <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                将下方按钮拖拽到浏览器书签栏即可完成安装
+                鼠标长按并拖拽下方蓝色按钮至浏览器书签栏即可完成安装
               </Typography>
               <Paper
                 elevation={3}
@@ -172,7 +165,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
                 </Box>
               </Paper>
               <Typography variant='caption' color='text.secondary' sx={{ mt: 1, display: 'block' }}>
-                如果浏览器书签栏未显示，请按 <b>Ctrl+Shift+B</b> (Windows) 或 <b>Cmd+Shift+B</b> (Mac) 显示书签栏
+                如果书签栏未显示，请按 <b>Ctrl+Shift+B</b> (Windows) 或 <b>Cmd+Shift+B</b> (Mac) 显示书签栏
               </Typography>
             </StepContent>
           </Step>
@@ -183,7 +176,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
             </StepLabel>
             <StepContent>
               <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-                如果拖拽不生效，可以手动创建书签并粘贴以下代码：
+                若拖拽不生效，可以新建一个空书签，并将地址修改为下方代码：
               </Typography>
               <Paper
                 sx={{
@@ -193,7 +186,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
                   borderRadius: 2,
                   fontFamily: 'monospace',
                   fontSize: '0.75rem',
-                  maxHeight: 200,
+                  maxHeight: 150,
                   overflow: 'auto',
                   position: 'relative',
                   wordBreak: 'break-all',
@@ -209,9 +202,6 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
               >
                 复制代码
               </Button>
-              <Typography variant='caption' color='text.secondary' sx={{ mt: 1, display: 'block' }}>
-                在浏览器书签管理器中新建书签，名称填"收藏到导航站"，URL粘贴上述代码
-              </Typography>
             </StepContent>
           </Step>
 
@@ -227,10 +217,10 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
                 <b>第二步：</b>浏览任意网页时，点击书签栏的"收藏到导航站"
               </Typography>
               <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                <b>第三步：</b>收藏成功后弹出提示，站点将添加到导航站
+                <b>第三步：</b>在弹出的窗口中登录（如未登录），选择分组并确认收藏
               </Typography>
               <Typography variant='body2' color='text.secondary'>
-                <b>第四步：</b>在导航站编辑站点信息，调整分组和可见性
+                <b>第四步：</b>收藏成功后窗口自动关闭，站点已添加到导航站
               </Typography>
             </StepContent>
           </Step>
@@ -244,7 +234,7 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
           fullWidth
           startIcon={<FileDownloadIcon />}
         >
-          下载书签安装页（HTML）
+          下载书签独立安装页（HTML）
         </Button>
         <Button onClick={onClose} variant='contained' color='primary' fullWidth>
           完成

@@ -10,6 +10,7 @@ import LoginForm from './components/LoginForm';
 import SearchBox from './components/SearchBox';
 import LinkChecker from './components/NewFeatures/LinkChecker';
 import BookmarkletGuide from './components/NewFeatures/BookmarkletGuide';
+import BookmarkletAddPanel from './components/NewFeatures/BookmarkletAddPanel';
 import BatchMoveDialog from './components/NewFeatures/BatchMoveDialog';
 import EnhancedSettings from './components/NewFeatures/EnhancedSettings';
 import { sanitizeCSS, isSecureUrl, extractDomain } from './utils/url';
@@ -221,6 +222,14 @@ function App() {
   const [openBatchMove, setOpenBatchMove] = useState(false);
   const [openEnhancedSettings, setOpenEnhancedSettings] = useState(false);
 
+  // ========== 书签脚本弹窗模式状态 ==========
+  const [bookmarkletData, setBookmarkletData] = useState<{
+    title: string;
+    url: string;
+    icon: string;
+    description: string;
+  } | null>(null);
+
   // ========== 全局音乐播放器状态 ==========
   const globalAudioRef = useRef<HTMLAudioElement | null>(null);
   const [globalMusicPlaying, setGlobalMusicPlaying] = useState(false);
@@ -386,6 +395,17 @@ function App() {
   useEffect(() => {
     // 检查认证状态
     checkAuthStatus();
+
+    // 解析是否为书签脚本调起（弹窗模式）
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('add_bookmark') === 'true') {
+      setBookmarkletData({
+        title: params.get('title') || '',
+        url: params.get('url') || '',
+        icon: params.get('icon') || '',
+        description: params.get('description') || '',
+      });
+    }
 
     // 确保初始化时重置排序状态
     setSortMode(SortMode.None);
@@ -927,6 +947,25 @@ function App() {
       handleError('删除分组失败: ' + (error as Error).message);
     }
   };
+
+  // ========== 书签脚本弹窗模式：渲染收藏面板 ==========
+  if (bookmarkletData) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <BookmarkletAddPanel
+          initialData={bookmarkletData}
+          groups={groups}
+          configs={configs}
+          onSave={async (siteData) => {
+            await api.createSite(siteData);
+          }}
+          onClose={() => window.close()}
+          handleError={handleError}
+        />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
