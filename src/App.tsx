@@ -66,7 +66,6 @@ import {
 import SortIcon from '@mui/icons-material/Sort';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
-import GitHubIcon from '@mui/icons-material/GitHub';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -83,8 +82,6 @@ import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-
-
 
 // 根据环境选择使用真实API还是模拟API
 const isDevEnvironment = import.meta.env.DEV;
@@ -231,7 +228,18 @@ function App() {
   const [globalVolume, setGlobalVolume] = useState(0.5);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
 
-
+  // 音乐播放优化：集中式音频播放控制，捕捉浏览器自动播放受限的报错并给予友好提示
+  const playAudio = async (audioObj: HTMLAudioElement) => {
+    try {
+      await audioObj.play();
+      setGlobalMusicPlaying(true);
+    } catch (err) {
+      console.warn('音频播放受阻或失败:', err);
+      // 部分浏览器（如 Chrome, Safari）在用户与页面交互前会阻止自动播放
+      handleError('音乐播放受阻。由于浏览器的安全策略，请在页面任意空白处点击一下，然后再尝试播放。');
+      setGlobalMusicPlaying(false);
+    }
+  };
 
   // 菜单打开关闭
   const handleMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -382,6 +390,14 @@ function App() {
     // 确保初始化时重置排序状态
     setSortMode(SortMode.None);
     setCurrentSortingGroupId(null);
+
+    // 卸载组件时清理正在播放的音频，避免出现背景残留音
+    return () => {
+      if (globalAudioRef.current) {
+        globalAudioRef.current.pause();
+        globalAudioRef.current = null;
+      }
+    };
   }, []);
 
   // 设置文档标题
@@ -994,8 +1010,8 @@ function App() {
                     theme.palette.mode === 'dark'
                       ? 'rgba(0, 0, 0, ' + (1 - Number(configs['site.backgroundOpacity'])) + ')'
                       : 'rgba(255, 255, 255, ' +
-                        (1 - Number(configs['site.backgroundOpacity'])) +
-                        ')',
+                      (1 - Number(configs['site.backgroundOpacity'])) +
+                      ')',
                   zIndex: 1,
                 },
               }}
@@ -1846,7 +1862,7 @@ function App() {
             onClose={() => setOpenBookmarklet(false)}
           />
 
-          {/* 批量移动对话框 */}
+          {/* 批量移动对话框 - 修复批量分组操作流程 */}
           <BatchMoveDialog
             open={openBatchMove}
             onClose={() => setOpenBatchMove(false)}
@@ -1860,12 +1876,26 @@ function App() {
               updated_at: g.updated_at,
             }))}
             onBatchMove={async (siteIds, targetGroupId) => {
-              await api.batchMoveSites(siteIds, targetGroupId);
-              await fetchData();
+              try {
+                setLoading(true);
+                // 调用后台 API 执行批量移动
+                await api.batchMoveSites(siteIds, targetGroupId);
+                // 刷新内存中的状态以展示最新布局
+                await fetchData();
+                // 成功后主动关闭弹窗并提示用户
+                setOpenBatchMove(false);
+                setSnackbarMessage('批量移动站点成功');
+                setSnackbarOpen(true);
+              } catch (err) {
+                console.error('批量移动站点失败:', err);
+                handleError('批量移动失败: ' + (err instanceof Error ? err.message : '未知错误'));
+              } finally {
+                setLoading(false);
+              }
             }}
           />
 
-          {/* 个性化设置对话框 */}
+          {/* 个性化设置对话框 - 优化音频绑定逻辑 */}
           <EnhancedSettings
             open={openEnhancedSettings}
             onClose={() => setOpenEnhancedSettings(false)}
@@ -1876,7 +1906,7 @@ function App() {
             }}
             onMusicPlay={(url) => {
               if (!url) {
-                // 停止音乐
+                // 停止音乐并清空
                 if (globalAudioRef.current) {
                   globalAudioRef.current.pause();
                   globalAudioRef.current = null;
@@ -1886,18 +1916,20 @@ function App() {
                 setShowMusicPlayer(false);
                 return;
               }
-              // 播放音乐
+
+              // 重新建立并播放音乐
               if (globalAudioRef.current) {
                 globalAudioRef.current.pause();
               }
               const audio = new Audio(url);
+              audio.crossOrigin = 'anonymous'; // 解决潜在的 CORS 跨域无声或报错问题
               audio.volume = globalVolume;
               audio.loop = true;
-              audio.play().catch(() => {});
+
               globalAudioRef.current = audio;
-              setGlobalMusicPlaying(true);
               setGlobalMusicUrl(url);
               setShowMusicPlayer(true);
+              playAudio(audio);
             }}
           />
 
@@ -1936,8 +1968,7 @@ function App() {
                         globalAudioRef.current.pause();
                         setGlobalMusicPlaying(false);
                       } else {
-                        globalAudioRef.current.play().catch(() => {});
-                        setGlobalMusicPlaying(true);
+                        playAudio(globalAudioRef.current);
                       }
                     }
                   }}
@@ -1998,60 +2029,31 @@ function App() {
                 onClick={() => {
                   const musicUrl = configs['site.musicUrl'];
                   if (!musicUrl) return;
-                  
-                  // 创建或恢复音频
-                  if (!globalAudioRef.current) {
-                    const audio = new Audio(musicUrl);
+
+                  let audio = globalAudioRef.current;
+                  if (!audio) {
+                    audio = new Audio(musicUrl);
+                    audio.crossOrigin = 'anonymous';
                     audio.volume = globalVolume;
                     audio.loop = true;
-                    audio.play().catch(() => {});
                     globalAudioRef.current = audio;
-                    setGlobalMusicPlaying(true);
-                  } else if (globalAudioRef.current.src !== musicUrl) {
-                    globalAudioRef.current.pause();
-                    const audio = new Audio(musicUrl);
+                  } else if (audio.src !== musicUrl) {
+                    audio.pause();
+                    audio = new Audio(musicUrl);
+                    audio.crossOrigin = 'anonymous';
                     audio.volume = globalVolume;
                     audio.loop = true;
-                    audio.play().catch(() => {});
                     globalAudioRef.current = audio;
-                    setGlobalMusicPlaying(true);
-                  } else {
-                    globalAudioRef.current.play().catch(() => {});
-                    setGlobalMusicPlaying(true);
                   }
+
                   setGlobalMusicUrl(musicUrl);
                   setShowMusicPlayer(true);
+                  playAudio(audio);
                 }}
               >
                 <MusicNoteIcon sx={{ fontSize: 16, color: 'primary.main' }} />
               </Paper>
             )}
-
-            {/* GitHub角标 */}
-            <Paper
-              component='a'
-              href='https://github.com/zqq-nuli/Navihive'
-              target='_blank'
-              rel='noopener noreferrer'
-              elevation={2}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                p: 1,
-                borderRadius: 10,
-                bgcolor: 'background.paper',
-                color: 'text.secondary',
-                transition: 'all 0.3s ease-in-out',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                  color: 'text.primary',
-                  boxShadow: 4,
-                },
-                textDecoration: 'none',
-              }}
-            >
-              <GitHubIcon />
-            </Paper>
           </Box>
 
         </Container>
