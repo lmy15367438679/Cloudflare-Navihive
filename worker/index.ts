@@ -733,7 +733,63 @@ export default {
                     const result = await api.deleteGroup(id);
                     return createJsonResponse({ success: result }, request);
                 }
-                // 站点相关API
+                // ========== 站点相关API（特异性路由必须放在通用路由之前） ==========
+
+                // 1. 批量移动站点到其他分组 (PUT sites/batch-move)
+                else if (path === "sites/batch-move" && method === "PUT") {
+                    const data = await validateRequestBody(request) as {
+                        site_ids: number[];
+                        target_group_id: number;
+                    };
+
+                    if (!data.site_ids || !Array.isArray(data.site_ids) || data.site_ids.length === 0) {
+                        return createJsonResponse(
+                            { success: false, message: '请提供要移动的站点ID列表' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    if (!data.target_group_id) {
+                        return createJsonResponse(
+                            { success: false, message: '请提供目标分组ID' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    // 批量更新站点分组
+                    const results = await api.batchMoveSites(data.site_ids, data.target_group_id);
+                    
+                    return createJsonResponse({ success: true, moved: results }, request);
+                }
+
+                // 2. 移动单个站点到其他分组 - 跨组拖拽 (PUT sites/:id/move)
+                else if (path.startsWith("sites/") && path.endsWith("/move") && method === "PUT") {
+                    const parts = path.split("/");
+                    const siteIdStr = parts[1];
+                    if (!siteIdStr) {
+                        return createJsonResponse({ error: "无效的站点ID" }, request, { status: 400 });
+                    }
+                    const siteId = parseInt(siteIdStr);
+                    if (isNaN(siteId)) {
+                        return createJsonResponse({ error: "无效的站点ID" }, request, { status: 400 });
+                    }
+
+                    const data = await validateRequestBody(request) as { target_group_id: number };
+                    if (!data.target_group_id) {
+                        return createJsonResponse(
+                            { success: false, message: '请提供目标分组ID' },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    const result = await api.updateSite(siteId, { group_id: data.target_group_id });
+                    return createJsonResponse({ success: !!result, site: result }, request);
+                }
+
+                // 3. 获取所有站点 (GET sites)
                 else if (path === "sites" && method === "GET") {
                     // 根据认证状态过滤查询
                     let query = `
@@ -768,7 +824,10 @@ export default {
 
                     const result = await env.DB.prepare(query).bind(...params).all();
                     return createJsonResponse(result.results || [], request);
-                } else if (path.startsWith("sites/") && method === "GET") {
+                }
+
+                // 4. 获取单个站点 (GET sites/:id)
+                else if (path.startsWith("sites/") && method === "GET") {
                     const idStr = path.split("/")[1];
                     if (!idStr) {
                         return createJsonResponse({ error: "无效的ID" }, request, { status: 400 });
@@ -780,7 +839,10 @@ export default {
 
                     const site = await api.getSite(id);
                     return createJsonResponse(site, request);
-                } else if (path === "sites" && method === "POST") {
+                }
+
+                // 5. 新建站点 (POST sites)
+                else if (path === "sites" && method === "POST") {
                     const data = (await validateRequestBody(request)) as SiteInput;
 
                     // 验证站点数据
@@ -798,7 +860,10 @@ export default {
 
                     const result = await api.createSite(validation.sanitizedData as Site);
                     return createJsonResponse(result, request);
-                } else if (path.startsWith("sites/") && method === "PUT") {
+                }
+
+                // 6. 更新单个站点 (PUT sites/:id)
+                else if (path.startsWith("sites/") && method === "PUT") {
                     const idStr = path.split("/")[1];
                     if (!idStr) {
                         return createJsonResponse({ error: "无效的ID" }, request, { status: 400 });
@@ -855,7 +920,10 @@ export default {
 
                     const result = await api.updateSite(id, data);
                     return createJsonResponse(result, request);
-                } else if (path.startsWith("sites/") && method === "DELETE") {
+                }
+
+                // 7. 删除单个站点 (DELETE sites/:id)
+                else if (path.startsWith("sites/") && method === "DELETE") {
                     const idStr = path.split("/")[1];
                     if (!idStr) {
                         return createJsonResponse({ error: "无效的ID" }, request, { status: 400 });
@@ -1117,60 +1185,6 @@ export default {
                     });
 
                     return createJsonResponse({ success: true, site }, request);
-                }
-
-                // 批量移动站点到其他分组（必须放在单个站点路由之前，避免被 sites/ 前缀路由捕获）
-                else if (path === "sites/batch-move" && method === "PUT") {
-                    const data = await validateRequestBody(request) as {
-                        site_ids: number[];
-                        target_group_id: number;
-                    };
-
-                    if (!data.site_ids || !Array.isArray(data.site_ids) || data.site_ids.length === 0) {
-                        return createJsonResponse(
-                            { success: false, message: '请提供要移动的站点ID列表' },
-                            request,
-                            { status: 400 }
-                        );
-                    }
-
-                    if (!data.target_group_id) {
-                        return createJsonResponse(
-                            { success: false, message: '请提供目标分组ID' },
-                            request,
-                            { status: 400 }
-                        );
-                    }
-
-                    // 批量更新站点分组
-                    const results = await api.batchMoveSites(data.site_ids, data.target_group_id);
-                    
-                    return createJsonResponse({ success: true, moved: results }, request);
-                }
-
-                // 移动单个站点到其他分组（跨组拖拽）
-                else if (path.startsWith("sites/") && path.endsWith("/move") && method === "PUT") {
-                    const parts = path.split("/");
-                    const siteIdStr = parts[1];
-                    if (!siteIdStr) {
-                        return createJsonResponse({ error: "无效的站点ID" }, request, { status: 400 });
-                    }
-                    const siteId = parseInt(siteIdStr);
-                    if (isNaN(siteId)) {
-                        return createJsonResponse({ error: "无效的站点ID" }, request, { status: 400 });
-                    }
-
-                    const data = await validateRequestBody(request) as { target_group_id: number };
-                    if (!data.target_group_id) {
-                        return createJsonResponse(
-                            { success: false, message: '请提供目标分组ID' },
-                            request,
-                            { status: 400 }
-                        );
-                    }
-
-                    const result = await api.updateSite(siteId, { group_id: data.target_group_id });
-                    return createJsonResponse({ success: !!result, site: result }, request);
                 }
 
                 // 默认返回404
