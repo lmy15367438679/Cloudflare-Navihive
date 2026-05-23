@@ -243,32 +243,6 @@ const SiteCard = memo(function SiteCard({
             >
               {site.description || '暂无描述'}
             </Typography>
-
-            {/* 快速移动分组按钮 */}
-            <IconButton
-              size='small'
-              onClick={handleGroupMenuOpen}
-              sx={{ position: 'absolute', bottom: 8, right: 8 }}
-              title='移动到其他分组'
-            >
-              <DriveFileMoveIcon fontSize='small' />
-            </IconButton>
-
-            {/* 分组选择菜单 */}
-            <Menu
-              anchorEl={groupMenuAnchor}
-              open={Boolean(groupMenuAnchor)}
-              onClose={handleGroupMenuClose}
-            >
-              {groups?.filter(g => g.id !== site.group_id).map(group => (
-                <MenuItem key={group.id} onClick={() => handleMoveToGroup(group.id)}>
-                  <ListItemIcon>
-                    <DriveFileMoveIcon fontSize='small' />
-                  </ListItemIcon>
-                  <ListItemText>{group.name}</ListItemText>
-                </MenuItem>
-              ))}
-            </Menu>
           </Box>
         ) : (
           <CardActionArea onClick={handleCardClick} sx={{ height: '100%' }}>
@@ -385,6 +359,36 @@ const SiteCard = memo(function SiteCard({
               )}
             </CardContent>
           </CardActionArea>
+        )}
+
+        {/* 快速移动分组按钮 - 编辑模式下显示 */}
+        {viewMode === 'edit' && groups && groups.length > 1 && (
+          <>
+            <IconButton
+              size='small'
+              onClick={handleGroupMenuOpen}
+              sx={{ position: 'absolute', bottom: 8, right: 8 }}
+              title='移动到其他分组'
+            >
+              <DriveFileMoveIcon fontSize='small' />
+            </IconButton>
+
+            {/* 分组选择菜单 */}
+            <Menu
+              anchorEl={groupMenuAnchor}
+              open={Boolean(groupMenuAnchor)}
+              onClose={handleGroupMenuClose}
+            >
+              {groups?.filter(g => g.id !== site.group_id).map(group => (
+                <MenuItem key={group.id} onClick={() => handleMoveToGroup(group.id)}>
+                  <ListItemIcon>
+                    <DriveFileMoveIcon fontSize='small' />
+                  </ListItemIcon>
+                  <ListItemText>{group.name}</ListItemText>
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
         )}
       </Card>
     </Box>

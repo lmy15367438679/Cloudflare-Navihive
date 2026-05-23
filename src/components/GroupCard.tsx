@@ -254,6 +254,8 @@ const GroupCard: React.FC<GroupCardProps> = ({
               isEditMode={false}
               viewMode={viewMode}
               iconApi={configs?.['site.iconApi']} // 传入iconApi配置
+              groups={groups}
+              onMoveGroup={onMoveGroup}
             />
           </Box>
         ))}
