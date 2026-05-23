@@ -82,6 +82,17 @@ export default function BookmarkletAddPanel({
                 is_public: isPublic,
                 order_num: 0,
             });
+
+            // 通过 BroadcastChannel 通知其他标签页刷新数据
+            try {
+                const channel = new BroadcastChannel('navihive-updates');
+                channel.postMessage({ type: 'bookmark-added' });
+                channel.close();
+            } catch (e) {
+                // BroadcastChannel 不受支持，忽略
+                console.warn('BroadcastChannel 不受支持:', e);
+            }
+
             onClose(); // 添加成功后关闭弹出的迷你窗口
         } catch (err) {
             console.error(err);

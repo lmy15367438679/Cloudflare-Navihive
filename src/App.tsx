@@ -458,6 +458,45 @@ function App() {
     }
   }, [darkMode]);
 
+  // BroadcastChannel 跨标签页自动刷新
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('navihive-updates');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'bookmark-added' || event.data?.type === 'data-changed') {
+          console.log('收到跨标签页更新通知，刷新数据');
+          fetchData();
+        }
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel 不受支持:', e);
+    }
+    return () => {
+      channel?.close();
+    };
+  }, []);
+
+  // 页面可见性变化自动刷新
+  const isFirstVisibleRef = useRef(true);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // 跳过首次加载时的可见性变化
+        if (isFirstVisibleRef.current) {
+          isFirstVisibleRef.current = false;
+          return;
+        }
+        console.log('标签页切换回前台，刷新数据');
+        fetchData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   // 处理错误的函数
   const handleError = (errorMessage: string) => {
     setSnackbarMessage(errorMessage);
@@ -514,6 +553,17 @@ function App() {
     } catch (error) {
       console.error('删除站点失败:', error);
       handleError('删除站点失败: ' + (error as Error).message);
+    }
+  };
+
+  // 快速移动站点到其他分组
+  const handleMoveGroup = async (siteId: number, targetGroupId: number) => {
+    try {
+      await api.moveSiteToGroup(siteId, targetGroupId);
+      await fetchData();
+    } catch (error) {
+      console.error('移动站点失败:', error);
+      handleError('移动站点失败: ' + (error as Error).message);
     }
   };
 
@@ -1363,6 +1413,8 @@ function App() {
                         onUpdateGroup={handleGroupUpdate}
                         onDeleteGroup={handleGroupDelete}
                         configs={configs}
+                        groups={groups}
+                        onMoveGroup={handleMoveGroup}
                       />
                     </Box>
                   ))}

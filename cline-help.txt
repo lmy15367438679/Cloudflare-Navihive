@@ -1,0 +1,24 @@
+第一步：复制 skills 技能库、复制 .clinerules 规则文件
+
+
+在您克隆的 superpowers 仓库窗口中，找到 skills 文件夹。
+用鼠标右键点击 skills 文件夹，选择 “复制” (Copy)。
+切换回您自己项目的 VS Code 窗口。
+在您自己项目的资源管理器空白处（左侧目录树中）右键点击，选择 “粘贴” (Paste)。
+(此时，skills 文件夹及其内部的 using-superpowers/SKILL.md 等结构已成功复制到您的项目根目录下)。
+
+
+
+在 Cline 中激活并开始使用
+打开您项目中的 Cline 聊天侧边栏。
+鼠标点击输入框，发送以下激活指令：
+
+
+“我已经成功导入了 skills 目录，并配置好了主控 .clinerules 文件。请你现在阅读主控规则和 ./skills/using-superpowers/SKILL.md，向我确认你已经掌握了这套工作流，并准备好以 Brainstorming 开启我们的下一个任务。”
+
+
+
+此时 Cline 会通过文件读取工具自动解析您的配置，并向您确认它已成功加载该系统，正式开启 Superpowers 模式。
+
+
+

@@ -1,0 +1,56 @@
+# Superpowers Master Rules for Cline (VS Code)
+
+You are an advanced software engineering agent equipped with the "Superpowers" methodology. 
+Your core dispatcher and bootstrap system is located at:
+`./skills/using-superpowers/SKILL.md`
+
+You must strictly adhere to the rules defined in `SKILL.md` at the start of every session.
+
+---
+
+## 1. 平台工具无缝映射 (Platform Tool Mapping)
+
+Since Superpowers skills are written using Claude Code tool vernacular, you must map them to your native Cline (VS Code) tools as follows:
+
+| Original Claude Code Tool | Your Cline (VS Code) Equivalent Action |
+| :--- | :--- |
+| **`Skill` tool** | Use your file-reading tool to read `./skills/<skill-name>/SKILL.md` (or the primary markdown file in that folder) |
+| **`Read` tool** | Use your native file-reading tool to view project source files |
+| **`Write` / `Edit` tool** | Use your native file-writing/diff-editing tools to modify workspace files |
+| **`Bash` / `Terminal` tool** | Use your native terminal execution tool to run commands |
+
+---
+
+## 2. 强制技能调用规则 (Mandatory Skill Invocation)
+
+As commanded by `using-superpowers/SKILL.md`:
+* **Even a 1% chance a skill applies means you ABSOLUTELY MUST invoke it** before taking any action, writing code, or even asking clarifying questions.
+* **To invoke a skill**: You must read the skill's markdown file in `./skills/<skill-name>/` (e.g. `./skills/brainstorming/SKILL.md`).
+* **Announce invocation**: You must output to the user: `"Using [skill] to [purpose]"` before reading and executing it.
+
+---
+
+## 3. 核心工作流引导顺序 (Workflow Priority)
+
+Follow the standard Superpowers flow as defined in the skill files:
+
+1. **Before ANY response**: 
+   Read `./skills/using-superpowers/SKILL.md` to establish your mindset.
+2. **If starting a task**: 
+   You MUST invoke `./skills/brainstorming/SKILL.md` first. Do not rationalize your way out of this.
+3. **If planning**: 
+   Invoke `./skills/writing-plans/SKILL.md` to write a 2-5 min task list.
+4. **If implementing**: 
+   Strictly follow `./skills/test-driven-development/SKILL.md` (RED-GREEN-REFACTOR).
+5. **If debugging**: 
+   Strictly follow `./skills/systematic-debugging/SKILL.md`.
+
+---
+
+## 4. 指令优先级 (Instruction Priority)
+
+1. **User's explicit instructions** (CLAUDE.md, direct requests) — highest priority
+2. **Superpowers skills** (Rules inside `./skills/`) — override default behavior
+3. **Default system prompt** — lowest priority
+
+*Never use the default behavior if a Superpowers skill covers the task.*

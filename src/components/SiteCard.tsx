@@ -1,6 +1,7 @@
 // src/components/SiteCard.tsx
 import { useState, memo } from 'react';
 import { Site } from '../API/http';
+import { GroupWithSites } from '../types';
 import SiteSettingsModal from './SiteSettingsModal';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -14,9 +15,14 @@ import {
   IconButton,
   Box,
   Fade,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 
 interface SiteCardProps {
   site: Site;
@@ -26,6 +32,8 @@ interface SiteCardProps {
   viewMode?: 'readonly' | 'edit'; // 访问模式
   index?: number;
   iconApi?: string; // 添加iconApi属性
+  groups?: GroupWithSites[]; // 全部分组列表（用于快速移动）
+  onMoveGroup?: (siteId: number, targetGroupId: number) => void; // 快速移动回调
 }
 
 // 使用memo包装组件以减少不必要的重渲染
@@ -37,10 +45,33 @@ const SiteCard = memo(function SiteCard({
   viewMode = 'edit', // 默认为编辑模式
   index = 0,
   iconApi, // 添加iconApi参数
+  groups, // 全部分组列表
+  onMoveGroup, // 快速移动回调
 }: SiteCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [iconError, setIconError] = useState(!site.icon);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [groupMenuAnchor, setGroupMenuAnchor] = useState<null | HTMLElement>(null);
+
+  // 处理分组菜单打开
+  const handleGroupMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setGroupMenuAnchor(e.currentTarget);
+  };
+
+  // 处理分组菜单关闭
+  const handleGroupMenuClose = () => {
+    setGroupMenuAnchor(null);
+  };
+
+  // 处理移动到目标分组
+  const handleMoveToGroup = (targetGroupId: number) => {
+    handleGroupMenuClose();
+    if (onMoveGroup && site.id) {
+      onMoveGroup(site.id, targetGroupId);
+    }
+  };
 
   // 使用dnd-kit的useSortable hook
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -212,6 +243,32 @@ const SiteCard = memo(function SiteCard({
             >
               {site.description || '暂无描述'}
             </Typography>
+
+            {/* 快速移动分组按钮 */}
+            <IconButton
+              size='small'
+              onClick={handleGroupMenuOpen}
+              sx={{ position: 'absolute', bottom: 8, right: 8 }}
+              title='移动到其他分组'
+            >
+              <DriveFileMoveIcon fontSize='small' />
+            </IconButton>
+
+            {/* 分组选择菜单 */}
+            <Menu
+              anchorEl={groupMenuAnchor}
+              open={Boolean(groupMenuAnchor)}
+              onClose={handleGroupMenuClose}
+            >
+              {groups?.filter(g => g.id !== site.group_id).map(group => (
+                <MenuItem key={group.id} onClick={() => handleMoveToGroup(group.id)}>
+                  <ListItemIcon>
+                    <DriveFileMoveIcon fontSize='small' />
+                  </ListItemIcon>
+                  <ListItemText>{group.name}</ListItemText>
+                </MenuItem>
+              ))}
+            </Menu>
           </Box>
         ) : (
           <CardActionArea onClick={handleCardClick} sx={{ height: '100%' }}>
