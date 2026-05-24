@@ -5,7 +5,7 @@ import { compareSync } from 'bcrypt-edge';
 // D1 数据库类型定义（Cloudflare Workers 运行时类型）
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
-  exec(query: string): Promise<D1Result>;
+  exec(query: string): Promise<D1ExecResult>;
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
 }
 
@@ -21,6 +21,11 @@ interface D1Result<T = unknown> {
   success: boolean;
   error?: string;
   meta?: unknown;
+}
+
+interface D1ExecResult {
+  count?: number;
+  duration?: number;
 }
 
 // 环境变量接口（合并 worker-configuration.d.ts 中的 Env）

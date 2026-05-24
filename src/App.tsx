@@ -237,7 +237,7 @@ function App() {
     }
   };
 
-  const handleSaveSiteOrder = async (groupId: number, sites: Site[]) => {
+  const handleSaveSiteOrder = async (_groupId: number, sites: Site[]) => {
     try {
       const siteOrders = sites.map((site, index) => ({
         id: site.id as number,
