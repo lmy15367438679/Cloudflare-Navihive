@@ -13,7 +13,8 @@ export class NavigationClient {
   isLoggedIn(): boolean {
     // Cookie 由浏览器自动管理，无法直接检查
     // 需要通过 API 调用来验证
-    return true; // 实际验证在 checkAuthStatus 中
+    // 返回 isAuthenticated 状态，该状态在 checkAuthStatus 和 login/logout 中维护
+    return this.isAuthenticated;
   }
 
   // 登录API

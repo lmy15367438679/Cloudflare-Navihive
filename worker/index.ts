@@ -1421,26 +1421,9 @@ interface ExecutionContext {
     passThroughOnException(): void;
 }
 
-// 声明D1数据库类型
-interface D1Database {
-    prepare(query: string): D1PreparedStatement;
-    exec(query: string): Promise<D1Result>;
-    batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
-}
-
-interface D1PreparedStatement {
-    bind(...values: any[]): D1PreparedStatement;
-    first<T = unknown>(column?: string): Promise<T | null>;
-    run<T = unknown>(): Promise<D1Result<T>>;
-    all<T = unknown>(): Promise<D1Result<T>>;
-}
-
-interface D1Result<T = unknown> {
-    results?: T[];
-    success: boolean;
-    error?: string;
-    meta?: any;
-}
+// D1类型定义已移至 src/API/http.ts，此处引用即可
+// 注意：worker/index.ts 和 src/API/http.ts 在 Cloudflare Workers 中共享同一运行时
+// D1Database, D1PreparedStatement, D1Result 由 @cloudflare/workers-types 提供
 
 // ========== 新增辅助函数 ==========
 

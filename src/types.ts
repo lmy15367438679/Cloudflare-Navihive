@@ -1,7 +1,4 @@
 import { Group, Site } from './API/http';
 
-// 确保GroupWithSites的id字段必定存在
-export interface GroupWithSites extends Omit<Group, 'id'> {
-  id: number; // 确保id始终存在
-  sites: Site[];
-}
+// GroupWithSites 已在 http.ts 中定义，此处仅做 re-export 保持兼容
+export type { GroupWithSites } from './API/http';

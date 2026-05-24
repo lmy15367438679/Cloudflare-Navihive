@@ -132,11 +132,7 @@ export default function EnhancedSettings({
   };
 
   // 关闭对话框时不清理音频，让全局播放器接管
-  useEffect(() => {
-    return () => {
-      // 不清理音频，让全局播放器继续播放
-    };
-  }, []);
+  // 注意：此组件卸载时不应清理音频，由 App.tsx 中的全局播放器管理
 
 
   const handleConfigChange = (key: string, value: string) => {
