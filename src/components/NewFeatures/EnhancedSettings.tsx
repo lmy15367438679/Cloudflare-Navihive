@@ -223,6 +223,7 @@ export default function EnhancedSettings({
                 <IconButton
                   color='primary'
                   onClick={() => handlePlayMusic(currentMusicUrl)}
+                  aria-label={isPlaying ? '暂停音乐' : '播放音乐'}
                 >
                   {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
                 </IconButton>

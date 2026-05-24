@@ -343,6 +343,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
               transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
               transition: 'transform 0.3s ease-in-out',
             }}
+            aria-label={isCollapsed ? '展开分组' : '折叠分组'}
           >
             <ExpandMoreIcon />
           </IconButton>
@@ -424,6 +425,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
                       onClick={handleEditClick}
                       size='small'
                       sx={{ alignSelf: 'center' }}
+                      aria-label='编辑分组'
                     >
                       <EditIcon />
                     </IconButton>

@@ -164,7 +164,7 @@ const SiteCard = memo(function SiteCard({
               flexDirection: 'column',
             }}
           >
-            <Box position='absolute' top={8} right={8}>
+            <Box position='absolute' top={8} right={8} aria-label='拖拽排序手柄'>
               <DragIndicatorIcon fontSize='small' color='primary' />
             </Box>
             {/* 图标和名称 */}
@@ -368,7 +368,7 @@ const SiteCard = memo(function SiteCard({
               size='small'
               onClick={handleGroupMenuOpen}
               sx={{ position: 'absolute', bottom: 8, right: 8 }}
-              title='移动到其他分组'
+              aria-label='移动到其他分组'
             >
               <DriveFileMoveIcon fontSize='small' />
             </IconButton>

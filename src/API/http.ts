@@ -2,7 +2,7 @@
 // 不使用外部JWT库，改为内置的crypto API
 import { compareSync } from 'bcrypt-edge';
 
-// 定义D1数据库类型
+// D1 数据库类型定义（Cloudflare Workers 运行时类型）
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
   exec(query: string): Promise<D1Result>;
@@ -23,7 +23,7 @@ interface D1Result<T = unknown> {
   meta?: unknown;
 }
 
-// 定义环境变量接口
+// 环境变量接口（合并 worker-configuration.d.ts 中的 Env）
 interface Env {
   DB: D1Database;
   AUTH_ENABLED?: string; // 是否启用身份验证
