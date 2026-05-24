@@ -3,7 +3,6 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { NavigationClient } from './API/client';
 import { MockNavigationClient } from './API/mock';
 import { Site, Group } from './API/http';
-import { GroupWithSites } from './types';
 import ThemeToggle from './components/ThemeToggle';
 import GroupCard from './components/GroupCard';
 import LoginForm from './components/LoginForm';
@@ -82,7 +81,6 @@ import LinkIcon from '@mui/icons-material/Link';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import PaletteIcon from '@mui/icons-material/Palette';
-import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -155,7 +153,6 @@ function App() {
     groups,
     setGroups,
     loading,
-    setLoading,
     fetchData,
     handleSiteUpdate,
     handleSiteDelete,
@@ -177,7 +174,6 @@ function App() {
     loginError,
     loginLoading,
     viewMode,
-    setViewMode,
     checkAuthStatus,
     handleLogin,
     handleLogout,
@@ -195,20 +191,14 @@ function App() {
 
   // ========== 音乐播放器 ==========
   const {
-    globalAudioRef,
     globalMusicPlaying,
-    setGlobalMusicPlaying,
     globalMusicUrl,
-    setGlobalMusicUrl,
     globalVolume,
     setGlobalVolume,
     showMusicPlayer,
-    setShowMusicPlayer,
-    playAudio,
     handlePlayMusic,
     togglePlayPause,
     closePlayer,
-    startMusicFromUrl,
     cleanup,
   } = useMusicPlayer();
 
@@ -904,7 +894,7 @@ function App() {
             </Box>
           )}
 
-          {!loading && !error && (
+          {!loading && (
             <Box sx={{ '& > *': { mb: 5 }, minHeight: '100px' }}>
               {sortMode === SortMode.GroupSort ? (
                 <DndContext
@@ -1152,7 +1142,7 @@ function App() {
           <LinkChecker
             open={openLinkChecker}
             onClose={() => setOpenLinkChecker(false)}
-            groups={groups}
+            sites={groups.flatMap((g) => g.sites || [])}
           />
 
           {/* 一键收藏对话框 */}
@@ -1165,8 +1155,9 @@ function App() {
           <BatchMoveDialog
             open={openBatchMove}
             onClose={() => setOpenBatchMove(false)}
+            sites={groups.flatMap((g) => g.sites || [])}
             groups={groups}
-            onMoveComplete={async (siteIds, targetGroupId) => {
+            onBatchMove={async (siteIds: number[], targetGroupId: number) => {
               try {
                 await api.batchMoveSites(siteIds, targetGroupId);
                 await fetchData();

@@ -24,7 +24,7 @@ interface D1Result<T = unknown> {
 }
 
 // 环境变量接口（合并 worker-configuration.d.ts 中的 Env）
-interface Env {
+export interface Env {
   DB: D1Database;
   AUTH_ENABLED?: string; // 是否启用身份验证
   AUTH_USERNAME?: string; // 认证用户名
