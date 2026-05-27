@@ -14,20 +14,24 @@ export interface ContextMenuAction {
   dividerAfter?: boolean;
 }
 
-interface ContextMenuProps {
-  actions: ContextMenuAction[];
-  children: ReactNode;
-  disabled?: boolean;
-}
-
 export function useContextMenu() {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const popperRef = useRef<HTMLDivElement>(null);
 
   const open = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent) => {
     e.preventDefault();
-    const clientX = 'touches' in e ? e.touches[0]?.clientX ?? e.clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0]?.clientY ?? e.clientY : e.clientY;
+    let clientX: number;
+    let clientY: number;
+    if ('touches' in e && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if ('clientX' in e) {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    } else {
+      clientX = 0;
+      clientY = 0;
+    }
     setPosition({ x: clientX, y: clientY });
   }, []);
 
@@ -41,6 +45,7 @@ export function useContextMenu() {
       document.addEventListener('click', handleClick);
       return () => document.removeEventListener('click', handleClick);
     }
+    return undefined;
   }, [position, close]);
 
   return { position, close, open, popperRef };
@@ -63,14 +68,12 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
       placement="bottom-start"
       ref={popperRef}
       sx={{ zIndex: 1300 }}
-      slotProps={{
-        popper: {
-          modifiers: [{
-            name: 'offset',
-            options: { offset: [position.x, position.y] },
-          }],
+      modifiers={[
+        {
+          name: 'offset',
+          options: { offset: [position.x, position.y] },
         },
-      }}
+      ]}
     >
       <ClickAwayListener onClickAway={onClose}>
         <Paper

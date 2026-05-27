@@ -648,7 +648,7 @@ function App() {
             groups={groups}
             activeGroupId={activeGroupId}
             isAuthenticated={isAuthenticated}
-            viewMode={viewMode}
+            viewMode={isAuthenticated ? 'authenticated' : 'readonly'}
             configs={configs}
             onGroupClick={handleSidebarGroupClick}
             onAddGroup={handleOpenAddGroup}
@@ -659,7 +659,7 @@ function App() {
         }
         topBar={
           <TopBar
-            title={configs['site.name']}
+            title={configs['site.name'] ?? ''}
             darkMode={darkMode}
             isAuthenticated={isAuthenticated}
             onToggleTheme={toggleTheme}

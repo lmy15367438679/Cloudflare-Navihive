@@ -6,7 +6,6 @@ import {
   ListItemText,
   ListItemIcon,
   Typography,
-  IconButton,
   Divider,
   Tooltip,
 } from '@mui/material';
@@ -37,7 +36,6 @@ export default function Sidebar({
   activeGroupId,
   isAuthenticated,
   viewMode,
-  configs,
   variant = 'hover',
   onGroupClick,
   onAddGroup,
@@ -63,7 +61,7 @@ export default function Sidebar({
     }, 200);
   }, []);
 
-  const sites: Site[] = groups.flatMap((g) => g.sites || []);
+  const sites: Site[] = (groups as Array<Group & { sites?: Site[] }>).flatMap((g) => g.sites || []);
 
   return (
     <>
@@ -176,7 +174,7 @@ export default function Sidebar({
                       fontSize: '11px',
                     }}
                   >
-                    {group.sites?.length || 0}
+                    {((group as Group & { sites?: Site[] }).sites?.length) || 0}
                   </Typography>
                 </ListItemButton>
               </Tooltip>

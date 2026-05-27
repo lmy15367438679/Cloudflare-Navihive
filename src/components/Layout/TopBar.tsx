@@ -1,4 +1,4 @@
-import { Box, Typography, IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Divider } from '@mui/material';
+import { Box, Typography, IconButton, Menu, MenuItem, ListItemText, Divider } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MenuIcon from '@mui/icons-material/Menu';
 import ThemeToggle from '../ThemeToggle';
@@ -33,6 +33,7 @@ export default function TopBar({
   onOpenBatchMove,
   onOpenEnhancedSettings,
   onLogout,
+  onMobileMenuOpen,
 }: TopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
