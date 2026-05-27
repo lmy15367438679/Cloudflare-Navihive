@@ -10,6 +10,7 @@ import BookmarkletGuide from './components/NewFeatures/BookmarkletGuide';
 import BookmarkletAddPanel from './components/NewFeatures/BookmarkletAddPanel';
 import BatchMoveDialog from './components/NewFeatures/BatchMoveDialog';
 import EnhancedSettings from './components/NewFeatures/EnhancedSettings';
+import LoadingSkeleton from './components/LoadingSkeleton';
 import { sanitizeCSS, isSecureUrl, extractDomain } from './utils/url';
 import { SearchResultItem } from './utils/search';
 import { useAuth } from './hooks/useAuth';
@@ -701,14 +702,10 @@ function App() {
             </Box>
           )}
 
-          {loading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-              <CircularProgress size={60} thickness={4} />
-            </Box>
-          )}
+          {loading && <LoadingSkeleton />}
 
           {!loading && (
-            <Box sx={{ '& > *': { mb: 5 }, minHeight: '100px' }}>
+            <Box sx={{ '& > *': { mb: 3 }, minHeight: '100px' }}>
               {sortMode === SortMode.GroupSort ? (
                 <DndContext
                   sensors={sensors}
@@ -727,7 +724,7 @@ function App() {
                   </SortableContext>
                 </DndContext>
               ) : (
-                <Stack spacing={5}>
+                <Stack spacing={3}>
                   {groups.map((group) => (
                     <Box key={`group-${group.id}`} id={`group-${group.id}`}>
                       <GroupCard
@@ -1007,8 +1004,7 @@ function App() {
                 alignItems: 'center',
                 gap: 1.5,
                 maxWidth: 320,
-                bgcolor: (theme) =>
-                  theme.palette.mode === 'dark' ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+                bgcolor: 'var(--color-elevated)',
                 backdropFilter: 'blur(10px)',
               }}
             >

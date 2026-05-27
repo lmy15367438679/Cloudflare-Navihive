@@ -6,6 +6,8 @@ import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import SortIcon from '@mui/icons-material/Sort';
 import type { ReactNode } from 'react';
 
+import { Group } from '../API/http';
+
 export interface ContextMenuAction {
   label: string;
   icon?: ReactNode;
@@ -126,13 +128,39 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
 
 export const siteContextActions = (
   onEdit: () => void,
-  onMove: () => void,
-  onDelete: () => void
-): ContextMenuAction[] => [
-  { label: '编辑', icon: <EditIcon fontSize="small" />, onClick: onEdit },
-  { label: '移动到分组', icon: <DriveFileMoveIcon fontSize="small" />, onClick: onMove, dividerAfter: true },
-  { label: '删除', icon: <DeleteIcon fontSize="small" />, onClick: onDelete, destructive: true },
-];
+  onDelete: () => void,
+  groups?: Group[],
+  onMoveGroup?: (targetGroupId: number) => void,
+): ContextMenuAction[] => {
+  const actions: ContextMenuAction[] = [
+    { label: '编辑', icon: <EditIcon fontSize="small" />, onClick: onEdit },
+  ];
+
+  if (groups && groups.length > 0 && onMoveGroup) {
+    actions.push({
+      label: '移动到分组',
+      icon: <DriveFileMoveIcon fontSize="small" />,
+      onClick: () => {}, // 子菜单由 MenuList 处理
+      dividerAfter: true,
+    });
+    groups.forEach((group) => {
+      actions.push({
+        label: `  ↳ ${group.name}`,
+        onClick: () => onMoveGroup(group.id as number),
+      });
+    });
+  } else {
+    actions.push({
+      label: '移动到分组',
+      icon: <DriveFileMoveIcon fontSize="small" />,
+      onClick: () => {},
+      dividerAfter: true,
+    });
+  }
+
+  actions.push({ label: '删除', icon: <DeleteIcon fontSize="small" />, onClick: onDelete, destructive: true });
+  return actions;
+};
 
 export const groupContextActions = (
   onSort: () => void,

@@ -1,6 +1,9 @@
 /**
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * Copy this file to wrangler.jsonc and fill in your credentials.
+ * wrangler.jsonc is gitignored — it will not be committed.
  */
 {
     "$schema": "node_modules/wrangler/config-schema.json",
@@ -13,18 +16,20 @@
     "observability": {
         "enabled": true
     },
-    // D1数据库绑定
+    // D1数据库绑定 — 替换 database_id 为你的实际ID
     "d1_databases": [
         {
             "binding": "DB",
-            "database_name": "navigation-db-local",
-            "database_id": "43ff28e1-42d6-4e53-9657-0702ae1353b6"
+            "database_name": "navigation-db",
+            "database_id": "YOUR_D1_DATABASE_ID"
         }
     ],
+    // 以下变量仅用于本地开发
+    // 生产环境请通过 `wrangler secret put` 设置：
+    //   wrangler secret put AUTH_USERNAME
+    //   wrangler secret put AUTH_PASSWORD
+    //   wrangler secret put AUTH_SECRET
     "vars": {
-        "AUTH_ENABLED": "true",
-        "AUTH_USERNAME": "linuxdo",
-        "AUTH_PASSWORD": "linuxdo",
-        "AUTH_SECRET": "linuxdo"
+        "AUTH_ENABLED": "true"
     }
 }

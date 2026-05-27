@@ -144,6 +144,7 @@ export default function Sidebar({
                     borderRadius: 'var(--radius-md)',
                     mx: 0.5,
                     mb: 0.25,
+                    minHeight: 44,
                     '&.Mui-selected': {
                       bgcolor: 'var(--color-accent-dim)',
                       color: 'var(--color-accent)',

@@ -27,10 +27,9 @@ const SiteCard = memo(function SiteCard({
   viewMode = 'edit',
   index = 0,
   iconApi,
-  groups: _groups,
-  onMoveGroup: _onMoveGroup,
+  groups,
+  onMoveGroup,
 }: SiteCardProps) {
-  void _groups; void _onMoveGroup;
   const [showSettings, setShowSettings] = useState(false);
   const [iconError, setIconError] = useState(!site.icon);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -67,12 +66,13 @@ const SiteCard = memo(function SiteCard({
 
   const contextActions = siteContextActions(
     () => setShowSettings(true),
-    () => {},
     () => {
       if (site.id && window.confirm(`确定删除站点「${site.name}」？`)) {
         onDelete(site.id);
       }
-    }
+    },
+    groups?.filter(g => g.id !== site.group_id),
+    onMoveGroup ? (targetGroupId: number) => onMoveGroup(site.id as number, targetGroupId) : undefined
   );
 
   const cardContent = (
@@ -92,10 +92,13 @@ const SiteCard = memo(function SiteCard({
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
         cursor: isEditMode ? 'grab' : 'pointer',
-        transition: 'background-color 150ms ease',
+        transform: 'translateY(0)',
+        transition: 'background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease',
         minHeight: 56,
         '&:hover': {
           bgcolor: 'var(--color-card-hover)',
+          transform: isEditMode ? 'none' : 'translateY(-2px)',
+          boxShadow: isEditMode ? 'none' : 'var(--shadow-md)',
         },
         ...(isDragging && {
           opacity: 0.7,

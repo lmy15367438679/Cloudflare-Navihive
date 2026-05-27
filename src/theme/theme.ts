@@ -29,8 +29,8 @@ export function createAppTheme(darkMode: boolean) {
               paper: tokens.light.card,
             },
             text: {
-              primary: '#0F172A',
-              secondary: '#334155',
+              primary: tokens.light.text.primary,
+              secondary: tokens.light.text.secondary,
             },
             divider: tokens.light.border,
           }),

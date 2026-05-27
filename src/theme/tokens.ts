@@ -9,7 +9,7 @@ export const tokens = {
     accentDim: '#166534',
     destructive: '#EF4444',
     muted: '#94A3B8',
-    border: '#1E293B',
+    border: '#334155',
   },
   text: {
     primary: '#F1F5F9',
@@ -22,8 +22,16 @@ export const tokens = {
     card: '#FFFFFF',
     cardHover: '#F1F5F9',
     elevated: '#FFFFFF',
-    border: '#E2E8F0',
+    border: '#CBD5E1',
     muted: '#64748B',
+    text: {
+      primary: '#0F172A',
+      secondary: '#334155',
+      tertiary: '#64748B',
+    },
+    shadowSm: '0 1px 2px rgba(0, 0, 0, 0.05)',
+    shadowMd: '0 4px 6px rgba(0, 0, 0, 0.07)',
+    shadowLg: '0 10px 25px rgba(0, 0, 0, 0.1)',
   },
   radius: {
     sm: '6px',
@@ -70,11 +78,11 @@ export const cssVariables = `
   --color-elevated: ${tokens.light.elevated};
   --color-border: ${tokens.light.border};
   --color-muted: ${tokens.light.muted};
-  --text-primary: #0F172A;
-  --text-secondary: #334155;
-  --text-tertiary: #64748B;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+  --text-primary: ${tokens.light.text.primary};
+  --text-secondary: ${tokens.light.text.secondary};
+  --text-tertiary: ${tokens.light.text.tertiary};
+  --shadow-sm: ${tokens.light.shadowSm};
+  --shadow-md: ${tokens.light.shadowMd};
+  --shadow-lg: ${tokens.light.shadowLg};
 }
 `;

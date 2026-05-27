@@ -1,7 +1,7 @@
 // src/components/ThemeToggle.tsx
 import { IconButton, Tooltip } from '@mui/material';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
 
 interface ThemeToggleProps {
   darkMode: boolean;
@@ -18,15 +18,15 @@ export default function ThemeToggle({ darkMode, onToggle }: ThemeToggleProps) {
         sx={{
           p: 1.5,
           borderRadius: '50%',
-          bgcolor: 'background.paper',
-          boxShadow: 1,
-          color: 'text.primary',
+          bgcolor: 'var(--color-elevated)',
+          boxShadow: 'var(--shadow-sm)',
+          color: 'var(--text-primary)',
           '&:hover': {
-            bgcolor: 'action.hover',
+            bgcolor: 'var(--color-card-hover)',
           },
         }}
       >
-        {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+        {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
       </IconButton>
     </Tooltip>
   );

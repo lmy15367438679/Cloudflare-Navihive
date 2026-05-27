@@ -19,7 +19,6 @@ import {
   IconButton,
   Tab,
   Tabs,
-  Chip,
   Alert,
   Paper,
 } from '@mui/material';
@@ -67,13 +66,6 @@ const PRESET_WALLPAPERS = [
   { name: '渐变', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1920&q=80' },
 ];
 
-// 预设音乐列表
-const PRESET_MUSIC = [
-  { name: '无', url: '' },
-  { name: '轻音乐 - 雨声', url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_b0c0b0b0b0.mp3' },
-  { name: '轻音乐 - 钢琴', url: 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_8a0b0b0b0b.mp3' },
-  { name: '轻音乐 - 吉他', url: 'https://cdn.pixabay.com/download/audio/2022/03/21/audio_6a0b0b0b0b.mp3' },
-];
 
 export default function EnhancedSettings({
   open,
@@ -187,25 +179,6 @@ export default function EnhancedSettings({
           <Alert severity='info' sx={{ mb: 2 }}>
             添加背景音乐，让导航站更有氛围。建议使用轻音乐或白噪音。
           </Alert>
-
-          <Typography variant='subtitle2' gutterBottom>
-            预设音乐
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-            {PRESET_MUSIC.map((music) => (
-              <Chip
-                key={music.name}
-                label={music.name}
-                onClick={() => {
-                  handlePlayMusic(music.url);
-                  handleConfigChange('site.musicUrl', music.url);
-                }}
-                color={currentMusicUrl === music.url && isPlaying ? 'primary' : 'default'}
-                variant={currentMusicUrl === music.url ? 'filled' : 'outlined'}
-                icon={currentMusicUrl === music.url && isPlaying ? <PauseIcon /> : <MusicNoteIcon />}
-              />
-            ))}
-          </Box>
 
           <TextField
             fullWidth

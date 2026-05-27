@@ -68,7 +68,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, loading = false, error =
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-              backgroundColor: 'primary.main',
+              backgroundColor: 'var(--color-accent)',
               color: 'white',
             }}
           >
@@ -86,7 +86,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, loading = false, error =
         </Box>
 
         {error && (
-          <Alert severity='error' sx={{ mb: 3 }}>
+          <Alert severity='error' sx={{
+            mb: 3,
+            bgcolor: 'rgba(239,68,68,0.1)',
+            color: 'var(--color-destructive)',
+            border: '1px solid var(--color-destructive)',
+            '& .MuiAlert-icon': {
+              color: 'var(--color-destructive)',
+            },
+          }}>
             {error}
           </Alert>
         )}
