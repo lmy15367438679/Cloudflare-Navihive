@@ -160,7 +160,14 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
       }}
     >
       {/* aria-live 播报结果数量 — 对屏幕阅读器隐藏 */}
-      <Box aria-live='polite' aria-atomic='true' sx={{ srOnly: true }}>
+      <Box aria-live='polite' aria-atomic='true' sx={{
+        position: 'absolute',
+        width: 1,
+        height: 1,
+        overflow: 'hidden',
+        clip: 'rect(0, 0, 0, 0)',
+        whiteSpace: 'nowrap',
+      }}>
         找到 {results.length} 个结果
       </Box>
 
