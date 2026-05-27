@@ -148,7 +148,9 @@ export default function EnhancedSettings({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth
+      slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+    >
       <DialogTitle>
         <Box display='flex' justifyContent='space-between' alignItems='center'>
           <Typography variant='h6' fontWeight='600'>
@@ -260,7 +262,7 @@ export default function EnhancedSettings({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  bgcolor: wp.url ? 'transparent' : 'action.hover',
+                  bgcolor: wp.url ? 'transparent' : 'var(--color-card-hover)',
                   backgroundImage: wp.url ? `url(${wp.url})` : 'none',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',

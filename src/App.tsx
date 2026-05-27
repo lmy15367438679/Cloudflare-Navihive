@@ -543,7 +543,7 @@ function App() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: 'background.default',
+            bgcolor: 'var(--color-canvas)',
           }}
         >
           <CircularProgress size={60} thickness={4} />
@@ -563,7 +563,7 @@ function App() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: 'background.default',
+            bgcolor: 'var(--color-canvas)',
           }}
         >
           <LoginForm onLogin={handleLogin} loading={loginLoading} error={loginError} />
@@ -626,11 +626,9 @@ function App() {
           sx={{
             width: '100%',
             whiteSpace: 'pre-line',
-            backgroundColor: (theme) => (theme.palette.mode === 'dark' ? '#2e7d32' : undefined),
-            color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : undefined),
-            '& .MuiAlert-icon': {
-              color: (theme) => (theme.palette.mode === 'dark' ? '#fff' : undefined),
-            },
+            bgcolor: 'var(--color-success)',
+            color: '#fff',
+            '& .MuiAlert-icon': { color: '#fff' },
           }}
         >
           {importResultMessage}
@@ -704,7 +702,47 @@ function App() {
 
           {loading && <LoadingSkeleton />}
 
-          {!loading && (
+          {!loading && groups.length === 0 && (
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                py: 10,
+                px: 3,
+                textAlign: 'center',
+                animation: 'contentIn 350ms ease-out',
+                '@keyframes contentIn': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              }}
+            >
+              <Box
+                sx={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  bgcolor: 'var(--color-accent-dim)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mb: 3,
+                }}
+              >
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </Box>
+              <Typography variant="h6" sx={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: 'var(--text-primary)', mb: 1 }}>
+                还没有任何内容
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'var(--text-secondary)', maxWidth: 360 }}>
+                {isAuthenticated ? '点击左下角「新增分组」开始创建你的导航站' : '管理员登录后即可添加导航内容'}
+              </Typography>
+            </Box>
+          )}
+
+          {!loading && groups.length > 0 && (
             <Box sx={{
               '& > *': { mb: 3 },
               minHeight: '100px',
@@ -756,7 +794,9 @@ function App() {
           )}
 
           {/* 新增分组对话框 */}
-          <Dialog open={openAddGroup} onClose={handleCloseAddGroup} maxWidth='md' fullWidth>
+          <Dialog open={openAddGroup} onClose={handleCloseAddGroup} maxWidth='md' fullWidth
+            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+          >
             <DialogTitle>
               新增分组
               <IconButton aria-label='close' onClick={handleCloseAddGroup} sx={{ position: 'absolute', right: 8, top: 8 }}>
@@ -795,7 +835,9 @@ function App() {
           </Dialog>
 
           {/* 新增站点对话框 */}
-          <Dialog open={openAddSite} onClose={handleCloseAddSite} maxWidth='md' fullWidth>
+          <Dialog open={openAddSite} onClose={handleCloseAddSite} maxWidth='md' fullWidth
+            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+          >
             <DialogTitle>
               新增站点
               <IconButton aria-label='close' onClick={handleCloseAddSite} sx={{ position: 'absolute', right: 8, top: 8 }}>
@@ -868,7 +910,9 @@ function App() {
           </Dialog>
 
           {/* 网站设置对话框 */}
-          <Dialog open={openConfig} onClose={handleCloseConfig} maxWidth='md' fullWidth>
+          <Dialog open={openConfig} onClose={handleCloseConfig} maxWidth='md' fullWidth
+            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+          >
             <DialogTitle>
               网站设置
               <IconButton aria-label='close' onClick={handleCloseConfig} sx={{ position: 'absolute', right: 8, top: 8 }}>
@@ -918,7 +962,9 @@ function App() {
           </Dialog>
 
           {/* 导入数据对话框 */}
-          <Dialog open={openImport} onClose={handleCloseImport} maxWidth='sm' fullWidth>
+          <Dialog open={openImport} onClose={handleCloseImport} maxWidth='sm' fullWidth
+            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+          >
             <DialogTitle>
               导入数据
               <IconButton aria-label='close' onClick={handleCloseImport} sx={{ position: 'absolute', right: 8, top: 8 }}>
@@ -997,19 +1043,21 @@ function App() {
           {/* 全局音乐播放器 */}
           {showMusicPlayer && globalMusicUrl && (
             <Paper
-              elevation={3}
+              elevation={0}
               sx={{
                 position: 'fixed',
                 bottom: 16,
                 right: 16,
                 zIndex: 9999,
                 p: 2,
-                borderRadius: 2,
+                borderRadius: 'var(--radius-lg)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1.5,
                 maxWidth: 320,
                 bgcolor: 'var(--color-elevated)',
+                border: '1px solid var(--color-border)',
+                boxShadow: 'var(--shadow-lg)',
                 backdropFilter: 'blur(10px)',
               }}
             >

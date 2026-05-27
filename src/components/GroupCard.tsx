@@ -343,8 +343,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
             variant='h5'
             component='h2'
             fontWeight={600}
-            color='text.primary'
-            sx={{ fontFamily: 'var(--font-heading)', mb: { xs: 1, sm: 0 } }}
+            sx={{ fontFamily: 'var(--font-heading)', mb: { xs: 1, sm: 0 }, color: 'var(--text-primary)' }}
           >
             {group.name}
             <Typography

@@ -171,8 +171,15 @@ export default function Sidebar({
                     variant="caption"
                     sx={{
                       fontFamily: 'var(--font-body)',
-                      color: 'var(--text-tertiary)',
+                      color: 'var(--text-secondary)',
                       fontSize: '11px',
+                      bgcolor: 'var(--color-border)',
+                      px: 0.75,
+                      py: 0.25,
+                      borderRadius: '10px',
+                      minWidth: 22,
+                      textAlign: 'center',
+                      fontWeight: 500,
                     }}
                   >
                     {((group as Group & { sites?: Site[] }).sites?.length) || 0}

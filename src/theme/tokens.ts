@@ -8,6 +8,7 @@ export const tokens = {
     accent: '#22C55E',
     accentDim: '#166534',
     destructive: '#EF4444',
+    success: '#16A34A',
     muted: '#94A3B8',
     border: '#334155',
   },
@@ -54,6 +55,7 @@ export const cssVariables = `
   --color-accent: ${tokens.color.accent};
   --color-accent-dim: ${tokens.color.accentDim};
   --color-destructive: ${tokens.color.destructive};
+  --color-success: ${tokens.color.success};
   --color-muted: ${tokens.color.muted};
   --color-border: ${tokens.color.border};
   --text-primary: ${tokens.text.primary};
