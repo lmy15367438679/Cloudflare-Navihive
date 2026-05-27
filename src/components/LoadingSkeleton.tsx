@@ -50,7 +50,12 @@ export default function LoadingSkeleton() {
   ));
 
   return (
-    <Box sx={{ minHeight: '100px', px: { xs: 2, sm: 3, md: 4 } }}>
+    <Box sx={{
+      minHeight: '100px',
+      px: { xs: 2, sm: 3, md: 4 },
+      animation: 'fadeIn 250ms ease-out',
+      '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } },
+    }}>
       {groupSections}
     </Box>
   );

@@ -705,7 +705,12 @@ function App() {
           {loading && <LoadingSkeleton />}
 
           {!loading && (
-            <Box sx={{ '& > *': { mb: 3 }, minHeight: '100px' }}>
+            <Box sx={{
+              '& > *': { mb: 3 },
+              minHeight: '100px',
+              animation: 'contentIn 350ms ease-out',
+              '@keyframes contentIn': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+            }}>
               {sortMode === SortMode.GroupSort ? (
                 <DndContext
                   sensors={sensors}
