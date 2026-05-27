@@ -167,7 +167,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
         case 'Enter':
           e.preventDefault();
           if (selectedIndex >= 0 && selectedIndex < results.length) {
-            handleResultClick(results[selectedIndex]);
+            const selected = results[selectedIndex];
+            if (selected) handleResultClick(selected);
           } else if (results.length > 0 && results[0]) {
             handleResultClick(results[0]);
           }
