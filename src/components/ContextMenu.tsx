@@ -23,8 +23,9 @@ export function useContextMenu() {
     let clientX: number;
     let clientY: number;
     if ('touches' in e && e.touches.length > 0) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
+      const touch = e.touches[0]!;
+      clientX = touch.clientX;
+      clientY = touch.clientY;
     } else if ('clientX' in e) {
       clientX = e.clientX;
       clientY = e.clientY;
