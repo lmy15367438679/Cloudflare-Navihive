@@ -1,6 +1,7 @@
 /**
  * 搜索框组件
  * 支持站内搜索和站外搜索引擎跳转
+ * 符合 WAI-ARIA combobox 模式，支持键盘导航
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -19,6 +20,7 @@ import {
   ListItemText,
   Divider,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -54,33 +56,45 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
   const [mode, setMode] = useState<SearchMode>('internal');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [selectedEngine, setSelectedEngine] = useState<SearchEngine>(getDefaultSearchEngine());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [isOpening, setIsOpening] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsListId = 'search-results-list';
 
-  // 处理站内搜索
+  // 处理站内搜索（带 try-catch 保护）
   const handleInternalSearch = useCallback(
     (searchQuery: string) => {
-      if (!searchQuery.trim()) {
+      try {
+        if (!searchQuery.trim()) {
+          setResults([]);
+          setShowResults(false);
+          return;
+        }
+
+        const searchResults = searchInternal(searchQuery, groups, sites);
+        setResults(searchResults);
+        setShowResults(true);
+      } catch (error) {
+        console.error('站内搜索失败:', error);
         setResults([]);
         setShowResults(false);
-        return;
       }
-
-      const searchResults = searchInternal(searchQuery, groups, sites);
-      setResults(searchResults);
-      setShowResults(true);
     },
     [groups, sites]
   );
 
   // 处理输入变化（带防抖）
   useEffect(() => {
+    // 查询变化时重置选中索引
+    setSelectedIndex(-1);
+
     if (mode === 'internal') {
       const timer = setTimeout(() => {
         handleInternalSearch(query);
-      }, 300); // 300ms 防抖
+      }, 300);
 
       return () => clearTimeout(timer);
     } else {
@@ -90,43 +104,89 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
     return undefined;
   }, [query, mode, handleInternalSearch]);
 
-  // 处理站外搜索
+  // 当结果变化时，确保 selectedIndex 在有效范围内
+  useEffect(() => {
+    setSelectedIndex((prev) => {
+      if (prev >= results.length) {
+        return results.length > 0 ? results.length - 1 : -1;
+      }
+      return prev;
+    });
+  }, [results]);
+
+  // 处理站外搜索（带加载状态反馈）
   const handleExternalSearch = () => {
-    if (!query.trim()) return;
+    if (!query.trim() || isOpening) return;
+
+    setIsOpening(true);
 
     let url: string;
 
-    // 如果输入看起来像 URL，直接打开
-    if (isUrl(query)) {
-      url = normalizeUrl(query);
-    } else {
-      // 否则使用选中的搜索引擎
-      url = buildSearchUrl(selectedEngine, query);
-    }
+    try {
+      // 如果输入看起来像 URL，直接打开
+      if (isUrl(query)) {
+        url = normalizeUrl(query);
+      } else {
+        // 否则使用选中的搜索引擎
+        url = buildSearchUrl(selectedEngine, query);
+      }
 
-    window.open(url, '_blank', 'noopener,noreferrer');
-    setQuery('');
-    setShowResults(false);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('外部搜索出错:', error);
+    } finally {
+      // 短暂延迟让用户看到反馈
+      setTimeout(() => {
+        setIsOpening(false);
+        setQuery('');
+        setShowResults(false);
+      }, 200);
+    }
   };
 
-  // 处理按下回车键
+  // 处理键盘导航
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
+    if (mode === 'internal') {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          if (results.length > 0) {
+            setSelectedIndex((prev) => (prev < results.length - 1 ? prev + 1 : 0));
+          }
+          break;
 
-      if (mode === 'internal') {
-        // 站内搜索：如果有结果，选择第一个
-        if (results.length > 0 && results[0]) {
-          handleResultClick(results[0]);
-        }
-      } else {
-        // 站外搜索：执行搜索
-        handleExternalSearch();
+        case 'ArrowUp':
+          e.preventDefault();
+          if (results.length > 0) {
+            setSelectedIndex((prev) => (prev > 0 ? prev - 1 : results.length - 1));
+          } else {
+            setSelectedIndex(-1);
+          }
+          break;
+
+        case 'Enter':
+          e.preventDefault();
+          if (selectedIndex >= 0 && selectedIndex < results.length) {
+            handleResultClick(results[selectedIndex]);
+          } else if (results.length > 0 && results[0]) {
+            handleResultClick(results[0]);
+          }
+          break;
+
+        case 'Escape':
+          setShowResults(false);
+          inputRef.current?.blur();
+          break;
       }
-    } else if (e.key === 'Escape') {
-      // ESC 键关闭搜索结果
-      setShowResults(false);
-      inputRef.current?.blur();
+    } else {
+      // 站外模式
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleExternalSearch();
+      } else if (e.key === 'Escape') {
+        setShowResults(false);
+        inputRef.current?.blur();
+      }
     }
   };
 
@@ -137,6 +197,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
       setQuery('');
       setResults([]);
       setShowResults(false);
+      setSelectedIndex(-1);
       inputRef.current?.focus();
     }
   };
@@ -145,6 +206,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
   const handleResultClick = (result: SearchResultItem) => {
     setShowResults(false);
     setQuery('');
+    setSelectedIndex(-1);
 
     if (result.type === 'site' && result.url) {
       // 打开站点 URL
@@ -160,6 +222,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
     setQuery('');
     setResults([]);
     setShowResults(false);
+    setSelectedIndex(-1);
     inputRef.current?.focus();
   };
 
@@ -175,7 +238,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
   const handleEngineSelect = (engine: SearchEngine) => {
     setSelectedEngine(engine);
     handleEngineMenuClose();
-    // 保存到 localStorage
     localStorage.setItem('selectedSearchEngine', engine.key);
   };
 
@@ -205,7 +267,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
   // 全局快捷键支持 (Ctrl+K / Cmd+K)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+K (Windows/Linux) 或 Cmd+K (Mac)
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         inputRef.current?.focus();
@@ -217,9 +278,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
   }, []);
 
   return (
-    <Box ref={searchBoxRef} sx={{ position: 'relative', width: '100%', maxWidth: 800, mx: 'auto' }}>
+    <Box
+      ref={searchBoxRef}
+      sx={{ position: 'relative', width: '100%', maxWidth: 800, mx: 'auto' }}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {/* 搜索模式切换 - 移到外侧 */}
+        {/* 搜索模式切换 */}
         <ToggleButtonGroup
           value={mode}
           exclusive
@@ -246,10 +310,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
             alignItems: 'center',
             p: 0.5,
             borderRadius: 3,
-            transition: 'all 0.3s',
+            transition: 'box-shadow 200ms ease, border-color 200ms ease',
             flex: 1,
+            border: '2px solid transparent',
             '&:focus-within': {
-              boxShadow: (theme) => `0 0 0 2px ${theme.palette.primary.main}`,
+              borderColor: 'primary.main',
+              boxShadow: (theme) => `0 0 0 1px ${theme.palette.primary.main}`,
             },
           }}
         >
@@ -299,7 +365,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
             </>
           )}
 
-          {/* 搜索输入框 */}
+          {/* 搜索输入框 — WAI-ARIA combobox 模式 */}
           <InputBase
             ref={inputRef}
             placeholder={
@@ -311,8 +377,18 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             sx={{ ml: 1, flex: 1 }}
-            inputProps={{ 'aria-label': '搜索' }}
-            autoComplete='off'
+            inputProps={{
+              'aria-label': mode === 'internal' ? '站内搜索' : '站外搜索',
+              'aria-autocomplete': 'list',
+              'aria-controls': mode === 'internal' ? resultsListId : undefined,
+              'aria-expanded': mode === 'internal' ? showResults && results.length > 0 : undefined,
+              'aria-activedescendant':
+                mode === 'internal' && selectedIndex >= 0
+                  ? `search-result-${selectedIndex}`
+                  : undefined,
+              role: 'combobox',
+              autoComplete: 'off',
+            }}
           />
 
           {/* 模式标签 */}
@@ -321,25 +397,30 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
               label={mode === 'internal' ? '站内' : '站外'}
               size='small'
               color={mode === 'internal' ? 'secondary' : 'primary'}
-              sx={{ mr: 1 }}
+              sx={{ mr: 1, height: 20, '& .MuiChip-label': { px: 0.8, fontSize: 11 } }}
             />
           )}
 
           {/* 清空按钮 */}
           {query && (
-            <IconButton size='small' onClick={handleClear} sx={{ mr: 0.5 }}>
+            <IconButton size='small' onClick={handleClear} sx={{ mr: 0.5 }} aria-label='清空搜索'>
               <CloseIcon fontSize='small' />
             </IconButton>
           )}
 
-          {/* 搜索按钮 */}
+          {/* 搜索按钮 — 站外模式显示加载指示 */}
           <IconButton
             size='small'
             onClick={mode === 'external' ? handleExternalSearch : undefined}
-            disabled={!query.trim()}
+            disabled={!query.trim() || (mode === 'external' && isOpening)}
             sx={{ mr: 0.5 }}
+            aria-label={mode === 'external' ? '执行外部搜索' : '搜索'}
           >
-            <SearchIcon />
+            {mode === 'external' && isOpening ? (
+              <CircularProgress size={20} />
+            ) : (
+              <SearchIcon />
+            )}
           </IconButton>
         </Paper>
       </Box>
@@ -351,6 +432,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
           query={query}
           onResultClick={handleResultClick}
           open={showResults}
+          selectedIndex={selectedIndex}
         />
       )}
     </Box>

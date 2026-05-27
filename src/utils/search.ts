@@ -118,26 +118,41 @@ function searchGroups(groups: Group[], query: string): SearchResultItem[] {
 
 /**
  * 站内搜索主函数
+ *
+ * @param query 搜索关键词
+ * @param groups 分组列表
+ * @param sites 站点列表
+ * @param maxResults 返回结果上限（默认 50，防止大数据集卡顿）
  */
-export function searchInternal(query: string, groups: Group[], sites: Site[]): SearchResultItem[] {
-  if (!query || !query.trim()) {
+export function searchInternal(
+  query: string,
+  groups: Group[],
+  sites: Site[],
+  maxResults: number = 50
+): SearchResultItem[] {
+  try {
+    if (!query || !query.trim()) {
+      return [];
+    }
+
+    // 创建分组 ID 到分组的映射
+    const groupsMap = new Map<number, Group>();
+    for (const group of groups) {
+      if (group.id !== undefined) {
+        groupsMap.set(group.id, group);
+      }
+    }
+
+    // 搜索站点和分组
+    const siteResults = searchSites(sites, query, groupsMap);
+    const groupResults = searchGroups(groups, query);
+
+    // 合并结果，站点优先，截断上限
+    return [...siteResults, ...groupResults].slice(0, maxResults);
+  } catch (error) {
+    console.error('搜索出错:', error);
     return [];
   }
-
-  // 创建分组 ID 到分组的映射
-  const groupsMap = new Map<number, Group>();
-  for (const group of groups) {
-    if (group.id !== undefined) {
-      groupsMap.set(group.id, group);
-    }
-  }
-
-  // 搜索站点和分组
-  const siteResults = searchSites(sites, query, groupsMap);
-  const groupResults = searchGroups(groups, query);
-
-  // 合并结果，站点优先
-  return [...siteResults, ...groupResults];
 }
 
 /**

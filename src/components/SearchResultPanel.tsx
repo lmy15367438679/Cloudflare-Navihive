@@ -1,6 +1,7 @@
 /**
  * 搜索结果面板组件
  * 显示站内搜索结果的下拉面板
+ * 支持 ARIA 无障碍、键盘导航高亮、空状态提示
  */
 
 import React from 'react';
@@ -15,7 +16,11 @@ import {
   Box,
   Divider,
 } from '@mui/material';
-import { Language as LanguageIcon, Folder as FolderIcon } from '@mui/icons-material';
+import {
+  Language as LanguageIcon,
+  Folder as FolderIcon,
+  SearchOff as SearchOffIcon,
+} from '@mui/icons-material';
 import type { SearchResultItem } from '../utils/search';
 
 interface SearchResultPanelProps {
@@ -23,6 +28,8 @@ interface SearchResultPanelProps {
   query: string;
   onResultClick: (result: SearchResultItem) => void;
   open: boolean;
+  /** 当前键盘导航选中的索引（-1 表示无选中） */
+  selectedIndex?: number;
 }
 
 const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
@@ -30,8 +37,10 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
   query,
   onResultClick,
   open,
+  selectedIndex = -1,
 }) => {
-  if (!open || !query || results.length === 0) {
+  // 未打开或无查询词时不渲染
+  if (!open || !query) {
     return null;
   }
 
@@ -68,9 +77,64 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
     );
   };
 
+  // ===== 空状态（有查询词但无结果） =====
+  if (results.length === 0) {
+    return (
+      <Paper
+        elevation={8}
+        role='region'
+        aria-label='搜索结果'
+        sx={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          mt: 1,
+          zIndex: 1300,
+          borderRadius: 2,
+          overflow: 'hidden',
+          animation: 'fadeIn 150ms ease-out',
+          '@keyframes fadeIn': {
+            from: { opacity: 0, transform: 'translateY(-4px)' },
+            to: { opacity: 1, transform: 'translateY(0)' },
+          },
+        }}
+      >
+        {/* aria-live 播报 — 对屏幕阅读器隐藏 */}
+        <Box aria-live='polite' aria-atomic='true' sx={{ srOnly: true }}>
+          未找到 {query} 的相关结果
+        </Box>
+
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            py: 4,
+            px: 3,
+            textAlign: 'center',
+          }}
+        >
+          <SearchOffIcon
+            sx={{ fontSize: 48, color: 'action.disabled', mb: 1.5 }}
+          />
+          <Typography variant='body1' color='text.secondary' sx={{ fontWeight: 500 }}>
+            未找到「{query}」相关结果
+          </Typography>
+          <Typography variant='caption' color='text.disabled' sx={{ mt: 0.5 }}>
+            试试不同的关键词，或检查拼写
+          </Typography>
+        </Box>
+      </Paper>
+    );
+  }
+
+  // ===== 有结果 =====
   return (
     <Paper
       elevation={8}
+      role='region'
+      aria-label='搜索结果'
       sx={{
         position: 'absolute',
         top: '100%',
@@ -81,14 +145,39 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
         overflowY: 'auto',
         zIndex: 1300,
         borderRadius: 2,
+        animation: 'fadeIn 150ms ease-out',
+        '@keyframes fadeIn': {
+          from: { opacity: 0, transform: 'translateY(-4px)' },
+          to: { opacity: 1, transform: 'translateY(0)' },
+        },
       }}
     >
-      <List sx={{ py: 0 }}>
+      {/* aria-live 播报结果数量 — 对屏幕阅读器隐藏 */}
+      <Box aria-live='polite' aria-atomic='true' sx={{ srOnly: true }}>
+        找到 {results.length} 个结果
+      </Box>
+
+      <List id='search-results-list' role='listbox' sx={{ py: 0 }}>
         {results.map((result, index) => (
           <React.Fragment key={`${result.type}-${result.id}`}>
             {index > 0 && <Divider />}
-            <ListItem disablePadding>
-              <ListItemButton onClick={() => onResultClick(result)}>
+            <ListItem
+              disablePadding
+              role='option'
+              aria-selected={index === selectedIndex}
+              id={`search-result-${index}`}
+            >
+              <ListItemButton
+                onClick={() => onResultClick(result)}
+                selected={index === selectedIndex}
+                sx={{
+                  transition: 'background-color 100ms ease',
+                  ...(index === selectedIndex && {
+                    bgcolor: 'action.selected',
+                    '&:hover': { bgcolor: 'action.selected' },
+                  }),
+                }}
+              >
                 <Box
                   sx={{
                     display: 'flex',
@@ -109,6 +198,11 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
                       borderRadius: 1,
                       bgcolor: result.type === 'site' ? 'primary.light' : 'secondary.light',
                       color: result.type === 'site' ? 'primary.main' : 'secondary.main',
+                      transition: 'background-color 150ms ease',
+                      ...(index === selectedIndex && {
+                        bgcolor: result.type === 'site' ? 'primary.main' : 'secondary.main',
+                        color: '#fff',
+                      }),
                     }}
                   >
                     {result.type === 'site' ? <LanguageIcon /> : <FolderIcon />}
@@ -134,7 +228,7 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
                             label={result.type === 'site' ? '站点' : '分组'}
                             size='small'
                             color={result.type === 'site' ? 'primary' : 'secondary'}
-                            sx={{ height: 20 }}
+                            sx={{ height: 20, flexShrink: 0 }}
                           />
                         </Box>
                       }
@@ -212,8 +306,13 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
         }}
       >
         <Typography variant='caption' color='text.secondary'>
-          找到 {results.length} 个结果
+          共 {results.length} 个结果
         </Typography>
+        {results.length >= 50 && (
+          <Typography variant='caption' color='text.disabled' sx={{ ml: 1 }}>
+            （显示前 50 条）
+          </Typography>
+        )}
       </Box>
     </Paper>
   );
