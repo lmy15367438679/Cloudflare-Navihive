@@ -7,6 +7,7 @@ import {
   Button,
   TextField,
   Box,
+  Typography,
   FormControlLabel,
   Switch,
 } from '@mui/material';
