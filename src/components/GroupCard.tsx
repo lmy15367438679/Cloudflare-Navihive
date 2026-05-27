@@ -469,19 +469,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
           onClose={closeCtx}
           actions={groupContextActions(
             () => {
-              if (group.id) {
-                if (group.sites.length < 2) {
-                  setSnackbarMessage('至少需要2个站点才能进行排序');
-                  setSnackbarOpen(true);
-                  return;
-                }
-                if (isCollapsed) setIsCollapsed(false);
-                onStartSiteSort(group.id);
+              if (group.id && window.confirm(`确定删除分组「${group.name}」？\n此分组下的所有站点也将被删除。`)) {
+                handleDeleteGroup(group.id);
               }
-            },
-            () => setEditDialogOpen(true),
-            () => {
-              if (group.id) handleDeleteGroup(group.id);
             }
           )}
         />

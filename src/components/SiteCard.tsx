@@ -4,7 +4,7 @@ import { GroupWithSites } from '../types';
 import SiteSettingsModal from './SiteSettingsModal';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Box, Typography, Skeleton } from '@mui/material';
+import { Box, Typography, Skeleton, Dialog, DialogTitle, DialogContent, List, ListItemButton, ListItemText } from '@mui/material';
 import { useContextMenu, ContextMenuPopper, siteContextActions } from './ContextMenu';
 
 interface SiteCardProps {
@@ -31,6 +31,7 @@ const SiteCard = memo(function SiteCard({
   onMoveGroup,
 }: SiteCardProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [iconError, setIconError] = useState(!site.icon);
   const [imageLoaded, setImageLoaded] = useState(false);
   const { position, close, open } = useContextMenu();
@@ -71,8 +72,10 @@ const SiteCard = memo(function SiteCard({
         onDelete(site.id);
       }
     },
-    groups?.filter(g => g.id !== site.group_id),
-    onMoveGroup ? (targetGroupId: number) => onMoveGroup(site.id as number, targetGroupId) : undefined
+    groups && groups.length > 1 ? () => {
+      close();
+      setShowMoveDialog(true);
+    } : undefined
   );
 
   const cardContent = (
@@ -187,6 +190,57 @@ const SiteCard = memo(function SiteCard({
       {cardContent}
 
       <ContextMenuPopper position={position} onClose={close} actions={contextActions} />
+
+      {/* 移动到分组对话框 */}
+      <Dialog
+        open={showMoveDialog}
+        onClose={() => setShowMoveDialog(false)}
+        maxWidth='xs'
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'var(--color-elevated)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 600 }}>
+          将「{site.name}」移到哪个分组？
+        </DialogTitle>
+        <DialogContent sx={{ p: 1 }}>
+          <List dense>
+            {(groups || [])
+              .filter((g) => g.id !== site.group_id)
+              .map((group) => (
+                <ListItemButton
+                  key={group.id}
+                  onClick={() => {
+                    if (onMoveGroup && site.id && group.id) {
+                      onMoveGroup(site.id, group.id);
+                    }
+                    setShowMoveDialog(false);
+                  }}
+                  sx={{
+                    borderRadius: 'var(--radius-md)',
+                    mb: 0.25,
+                    '&:hover': { bgcolor: 'var(--color-accent-dim)' },
+                  }}
+                >
+                  <ListItemText
+                    primary={group.name}
+                    primaryTypographyProps={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '14px',
+                    }}
+                  />
+                </ListItemButton>
+              ))}
+          </List>
+        </DialogContent>
+      </Dialog>
 
       {showSettings && (
         <SiteSettingsModal
