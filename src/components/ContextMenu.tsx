@@ -62,31 +62,6 @@ interface ContextMenuPopperProps {
 }
 
 export function ContextMenuPopper({ position, onClose, actions, popperRef }: ContextMenuPopperProps) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // 计算菜单位置，防止超出视口
-  const getAdjustedPosition = useCallback(() => {
-    if (!position || !menuRef.current) return { left: position?.x ?? 0, top: position?.y ?? 0 };
-
-    const menuRect = menuRef.current.getBoundingClientRect();
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-
-    let left = position.x;
-    let top = position.y;
-
-    // 如果菜单超出右边界，向左偏移
-    if (left + menuRect.width > viewportW - 8) {
-      left = viewportW - menuRect.width - 8;
-    }
-    // 如果菜单超出下边界，向上偏移
-    if (top + menuRect.height > viewportH - 8) {
-      top = viewportH - menuRect.height - 8;
-    }
-
-    return { left, top };
-  }, [position]);
-
   if (!position) return null;
 
   return (
@@ -101,7 +76,6 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
     >
       <ClickAwayListener onClickAway={onClose}>
         <Paper
-          ref={menuRef}
           elevation={0}
           onMouseDown={(e) => e.stopPropagation()}
           sx={{
