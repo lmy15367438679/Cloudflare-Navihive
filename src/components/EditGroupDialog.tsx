@@ -6,9 +6,7 @@ import {
   DialogActions,
   Button,
   TextField,
-  Typography,
   Box,
-  Alert,
   FormControlLabel,
   Switch,
 } from '@mui/material';
@@ -19,7 +17,6 @@ interface EditGroupDialogProps {
   group: Group | null;
   onClose: () => void;
   onSave: (group: Group) => void;
-  onDelete: (groupId: number) => void;
 }
 
 const EditGroupDialog: React.FC<EditGroupDialogProps> = ({
@@ -27,26 +24,21 @@ const EditGroupDialog: React.FC<EditGroupDialogProps> = ({
   group,
   onClose,
   onSave,
-  onDelete,
 }) => {
   const [name, setName] = useState('');
-  const [isPublic, setIsPublic] = useState(true); // 新增：公开/私密状态
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
 
   // 当弹窗打开时，初始化名称和公开状态
   React.useEffect(() => {
     if (group) {
       setName(group.name);
-      setIsPublic(group.is_public !== 0); // 0 = 私密, 1 或 undefined = 公开
+      setIsPublic(group.is_public !== 0);
     }
-    // 关闭删除确认状态
-    setShowDeleteConfirm(false);
   }, [group, open]);
 
   const handleSave = () => {
     if (!group || !name.trim()) return;
 
-    // 确保 id 存在
     if (!group.id) {
       console.error('分组 ID 不存在,无法保存');
       return;
@@ -54,26 +46,10 @@ const EditGroupDialog: React.FC<EditGroupDialogProps> = ({
 
     onSave({
       ...group,
-      id: group.id, // 确保 id 存在
+      id: group.id,
       name: name.trim(),
-      is_public: isPublic ? 1 : 0, // 保存 is_public 字段
+      is_public: isPublic ? 1 : 0,
     });
-  };
-
-  const handleDelete = () => {
-    if (!group) return;
-
-    if (!showDeleteConfirm) {
-      // 显示删除确认
-      setShowDeleteConfirm(true);
-    } else {
-      // 确认删除
-      if (!group.id) {
-        console.error('分组 ID 不存在,无法删除');
-        return;
-      }
-      onDelete(group.id);
-    }
   };
 
   if (!group) return null;
@@ -114,44 +90,19 @@ const EditGroupDialog: React.FC<EditGroupDialogProps> = ({
           />
         </Box>
 
-        {showDeleteConfirm && (
-          <Alert severity='warning' sx={{ mt: 2 }}>
-            <Typography variant='body2'>
-              确定要删除分组 "{group.name}" 吗？
-              <strong>删除此分组将同时删除该分组下的所有网站。</strong>
-              此操作无法撤销。
-            </Typography>
-          </Alert>
-        )}
       </DialogContent>
       <DialogActions>
-        {!showDeleteConfirm ? (
-          <>
-            <Button onClick={onClose} color='inherit'>
-              取消
-            </Button>
-            <Button onClick={handleDelete} color='error' variant='outlined'>
-              删除
-            </Button>
-            <Button
-              onClick={handleSave}
-              color='primary'
-              variant='contained'
-              disabled={!name.trim()}
-            >
-              保存
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button onClick={() => setShowDeleteConfirm(false)} color='inherit'>
-              取消
-            </Button>
-            <Button onClick={handleDelete} color='error' variant='contained'>
-              确认删除
-            </Button>
-          </>
-        )}
+        <Button onClick={onClose} color='inherit'>
+          取消
+        </Button>
+        <Button
+          onClick={handleSave}
+          color='primary'
+          variant='contained'
+          disabled={!name.trim()}
+        >
+          保存
+        </Button>
       </DialogActions>
     </Dialog>
   );

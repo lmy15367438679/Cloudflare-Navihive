@@ -458,7 +458,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
           group={group}
           onClose={() => setEditDialogOpen(false)}
           onSave={handleUpdateGroup}
-          onDelete={handleDeleteGroup}
         />
       )}
 
