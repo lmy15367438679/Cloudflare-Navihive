@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Box, Paper, MenuList, MenuItem, ListItemIcon, ListItemText, Divider, ClickAwayListener } from '@mui/material';
+import { Box, Paper, MenuList, MenuItem, ListItemIcon, ListItemText, Divider, ClickAwayListener, Portal } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
@@ -64,14 +64,14 @@ interface ContextMenuPopperProps {
 export function ContextMenuPopper({ position, onClose, actions, popperRef }: ContextMenuPopperProps) {
   if (!position) return null;
 
-  return (
+  const menuContent = (
     <Box
       ref={popperRef}
       sx={{
         position: 'fixed',
         left: position.x,
         top: position.y,
-        zIndex: 1300,
+        zIndex: 2147483647,
       }}
     >
       <ClickAwayListener onClickAway={onClose}>
@@ -121,6 +121,8 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
       </ClickAwayListener>
     </Box>
   );
+
+  return <Portal>{menuContent}</Portal>;
 }
 
 export const siteContextActions = (
