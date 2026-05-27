@@ -298,20 +298,12 @@ const GroupCard: React.FC<GroupCardProps> = ({
   // 修改分组标题区域的渲染
   return (
     <Paper
-      elevation={sortMode === 'None' ? 2 : 3}
+      elevation={0}
       sx={{
-        borderRadius: 4,
+        borderRadius: 'var(--radius-lg)',
         p: { xs: 2, sm: 3 },
-        transition: 'all 0.3s ease-in-out',
-        border: '1px solid transparent',
-        '&:hover': {
-          boxShadow: sortMode === 'None' ? 6 : 3,
-          borderColor: 'divider',
-          transform: sortMode === 'None' ? 'scale(1.01)' : 'none',
-        },
-        backgroundColor: (theme) =>
-          theme.palette.mode === 'dark' ? 'rgba(33, 33, 33, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(5px)',
+        border: '1px solid var(--color-border)',
+        bgcolor: 'var(--color-card)',
       }}
     >
       <Box
@@ -350,12 +342,16 @@ const GroupCard: React.FC<GroupCardProps> = ({
           <Typography
             variant='h5'
             component='h2'
-            fontWeight='600'
+            fontWeight={600}
             color='text.primary'
-            sx={{ mb: { xs: 1, sm: 0 } }}
+            sx={{ fontFamily: 'var(--font-heading)', mb: { xs: 1, sm: 0 } }}
           >
             {group.name}
-            <Typography component='span' variant='body2' color='text.secondary' sx={{ ml: 1 }}>
+            <Typography
+              component='span'
+              variant='body2'
+              sx={{ ml: 1, fontFamily: 'var(--font-body)', color: 'var(--text-tertiary)', fontSize: '12px' }}
+            >
               ({group.sites.length})
             </Typography>
           </Typography>

@@ -1,79 +1,41 @@
-// src/components/SiteCard.tsx
-import { useState, memo } from 'react';
+import { useState, memo, useCallback } from 'react';
 import { Site } from '../API/http';
 import { GroupWithSites } from '../types';
 import SiteSettingsModal from './SiteSettingsModal';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-// 引入Material UI组件
-import {
-  Card,
-  CardContent,
-  CardActionArea,
-  Typography,
-  Skeleton,
-  IconButton,
-  Box,
-  Fade,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
-} from '@mui/material';
-import SettingsIcon from '@mui/icons-material/Settings';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
+import { Box, Typography, Skeleton } from '@mui/material';
+import { useContextMenu, ContextMenuPopper, siteContextActions } from './ContextMenu';
 
 interface SiteCardProps {
   site: Site;
   onUpdate: (updatedSite: Site) => void;
   onDelete: (siteId: number) => void;
   isEditMode?: boolean;
-  viewMode?: 'readonly' | 'edit'; // 访问模式
+  viewMode?: 'readonly' | 'edit';
   index?: number;
-  iconApi?: string; // 添加iconApi属性
-  groups?: GroupWithSites[]; // 全部分组列表（用于快速移动）
-  onMoveGroup?: (siteId: number, targetGroupId: number) => void; // 快速移动回调
+  iconApi?: string;
+  groups?: GroupWithSites[];
+  onMoveGroup?: (siteId: number, targetGroupId: number) => void;
 }
 
-// 使用memo包装组件以减少不必要的重渲染
 const SiteCard = memo(function SiteCard({
   site,
   onUpdate,
   onDelete,
   isEditMode = false,
-  viewMode = 'edit', // 默认为编辑模式
+  viewMode = 'edit',
   index = 0,
-  iconApi, // 添加iconApi参数
-  groups, // 全部分组列表
-  onMoveGroup, // 快速移动回调
+  iconApi,
+  groups: _groups,
+  onMoveGroup: _onMoveGroup,
 }: SiteCardProps) {
+  void _groups; void _onMoveGroup;
   const [showSettings, setShowSettings] = useState(false);
   const [iconError, setIconError] = useState(!site.icon);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [groupMenuAnchor, setGroupMenuAnchor] = useState<null | HTMLElement>(null);
+  const { position, close, open } = useContextMenu();
 
-  // 处理分组菜单打开
-  const handleGroupMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setGroupMenuAnchor(e.currentTarget);
-  };
-
-  // 处理分组菜单关闭
-  const handleGroupMenuClose = () => {
-    setGroupMenuAnchor(null);
-  };
-
-  // 处理移动到目标分组
-  const handleMoveToGroup = (targetGroupId: number) => {
-    handleGroupMenuClose();
-    if (onMoveGroup && site.id) {
-      onMoveGroup(site.id, targetGroupId);
-    }
-  };
-
-  // 使用dnd-kit的useSortable hook
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `site-${site.id || index}`,
     disabled: !isEditMode,
@@ -83,348 +45,153 @@ const SiteCard = memo(function SiteCard({
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 9999 : 'auto',
-    opacity: isDragging ? 0.8 : 1,
+    opacity: isDragging ? 0.7 : 1,
     position: 'relative' as const,
   };
 
-  // 如果没有图标，使用首字母作为图标
   const fallbackIcon = site.name.charAt(0).toUpperCase();
 
-  // 处理设置按钮点击
-  const handleSettingsClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // 阻止卡片点击事件
-    e.preventDefault(); // 防止默认行为
-    setShowSettings(true);
-  };
-
-  // 处理关闭设置
-  const handleCloseSettings = () => {
-    setShowSettings(false);
-  };
-
-  // 处理卡片点击
-  const handleCardClick = () => {
+  const handleCardClick = useCallback(() => {
     if (!isEditMode && site.url) {
       window.open(site.url, '_blank');
     }
-  };
+  }, [isEditMode, site.url]);
 
-  // 处理图标加载错误
-  const handleIconError = () => {
-    setIconError(true);
-  };
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (viewMode !== 'edit') return;
+      open(e);
+    },
+    [viewMode, open]
+  );
 
-  // 处理图片加载完成
-  const handleImageLoad = () => {
-    setImageLoaded(true);
-  };
+  const contextActions = siteContextActions(
+    () => setShowSettings(true),
+    () => {},
+    () => {
+      if (site.id && window.confirm(`确定删除站点「${site.name}」？`)) {
+        onDelete(site.id);
+      }
+    }
+  );
 
-  // 卡片内容
   const cardContent = (
     <Box
+      ref={setNodeRef}
+      style={isEditMode ? style : undefined}
+      {...(isEditMode ? { ...attributes, ...listeners } : {})}
+      onClick={isEditMode ? undefined : handleCardClick}
+      onContextMenu={handleContextMenu}
+      title={isEditMode ? undefined : site.url}
       sx={{
-        height: '100%',
-        position: 'relative',
-        transition: 'transform 0.3s ease-in-out',
-        ...(!isEditMode && {
-          '&:hover': {
-            transform: 'translateY(-4px)',
-          },
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        p: 1.5,
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--color-border)',
+        bgcolor: 'var(--color-card)',
+        cursor: isEditMode ? 'grab' : 'pointer',
+        transition: 'background-color 150ms ease',
+        minHeight: 56,
+        '&:hover': {
+          bgcolor: 'var(--color-card-hover)',
+        },
+        ...(isDragging && {
+          opacity: 0.7,
+          boxShadow: 'var(--shadow-md)',
         }),
       }}
     >
-      <Card
-        sx={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 3,
-          transition: 'box-shadow 0.3s ease-in-out',
-          border: '1px solid',
-          borderColor: 'divider',
-          boxShadow: isDragging ? 8 : 2,
-          '&:hover': !isEditMode
-            ? {
-                boxShadow: 5,
-              }
-            : {},
-          overflow: 'hidden',
-          backgroundColor: (theme) =>
-            theme.palette.mode === 'dark' ? 'rgba(33, 33, 33, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-          backdropFilter: 'blur(5px)',
-        }}
-      >
-        {isEditMode ? (
+      {/* Icon */}
+      {!iconError && site.icon ? (
+        <Box position="relative" width={28} height={28} flexShrink={0}>
+          {!imageLoaded && (
+            <Skeleton variant="rounded" width={28} height={28} sx={{ position: 'absolute' }} />
+          )}
           <Box
+            component="img"
+            src={site.icon}
+            alt=""
             sx={{
-              height: '100%',
-              p: { xs: 1.5, sm: 2 },
-              cursor: 'grab',
-              display: 'flex',
-              flexDirection: 'column',
+              width: 28,
+              height: 28,
+              borderRadius: '4px',
+              objectFit: 'contain',
+              display: imageLoaded ? 'block' : 'none',
+            }}
+            onError={() => setIconError(true)}
+            onLoad={() => setImageLoaded(true)}
+          />
+        </Box>
+      ) : (
+        <Box
+          sx={{
+            width: 28,
+            height: 28,
+            borderRadius: '4px',
+            bgcolor: 'var(--color-accent-dim)',
+            color: 'var(--color-accent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            fontFamily: 'var(--font-heading)',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          {fallbackIcon}
+        </Box>
+      )}
+
+      {/* Text */}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography
+          noWrap
+          sx={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: 'var(--text-primary)',
+            lineHeight: 1.3,
+          }}
+        >
+          {site.name}
+        </Typography>
+        {site.description && (
+          <Typography
+            sx={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
             }}
           >
-            <Box position='absolute' top={8} right={8} aria-label='拖拽排序手柄'>
-              <DragIndicatorIcon fontSize='small' color='primary' />
-            </Box>
-            {/* 图标和名称 */}
-            <Box display='flex' alignItems='center' mb={1}>
-              {!iconError && site.icon ? (
-                <Box position='relative' mr={1.5} width={32} height={32} flexShrink={0}>
-                  <Skeleton
-                    variant='rounded'
-                    width={32}
-                    height={32}
-                    sx={{
-                      display: !imageLoaded ? 'block' : 'none',
-                      position: 'absolute',
-                    }}
-                  />
-                  <Fade in={imageLoaded} timeout={500}>
-                    <Box
-                      component='img'
-                      src={site.icon}
-                      alt={site.name}
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 1,
-                        objectFit: 'cover',
-                      }}
-                      onError={handleIconError}
-                      onLoad={handleImageLoad}
-                    />
-                  </Fade>
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    mr: 1.5,
-                    borderRadius: 1,
-                    bgcolor: 'primary.light',
-                    color: 'primary.main',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: 1,
-                    borderColor: 'primary.main',
-                    opacity: 0.8,
-                  }}
-                >
-                  {fallbackIcon}
-                </Box>
-              )}
-              <Typography
-                variant='subtitle1'
-                fontWeight='medium'
-                noWrap
-                sx={{
-                  fontSize: { xs: '0.875rem', sm: '1rem' },
-                }}
-              >
-                {site.name}
-              </Typography>
-            </Box>
-
-            {/* 描述 */}
-            <Typography
-              variant='body2'
-              color='text.secondary'
-              sx={{
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                flexGrow: 1,
-                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-              }}
-            >
-              {site.description || '暂无描述'}
-            </Typography>
-          </Box>
-        ) : (
-          <CardActionArea onClick={handleCardClick} sx={{ height: '100%' }}>
-            <CardContent
-              sx={{
-                position: 'relative',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                p: { xs: 1.5, sm: 2 },
-                '&:last-child': { pb: { xs: 1.5, sm: 2 } },
-              }}
-            >
-              {/* 图标和名称 */}
-              <Box display='flex' alignItems='center' mb={1}>
-                {!iconError && site.icon ? (
-                  <Box position='relative' mr={1.5} width={32} height={32} flexShrink={0}>
-                    <Skeleton
-                      variant='rounded'
-                      width={32}
-                      height={32}
-                      sx={{
-                        display: !imageLoaded ? 'block' : 'none',
-                        position: 'absolute',
-                      }}
-                    />
-                    <Fade in={imageLoaded} timeout={500}>
-                      <Box
-                        component='img'
-                        src={site.icon}
-                        alt={site.name}
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 1,
-                          objectFit: 'cover',
-                        }}
-                        onError={handleIconError}
-                        onLoad={handleImageLoad}
-                      />
-                    </Fade>
-                  </Box>
-                ) : (
-                  <Box
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      mr: 1.5,
-                      borderRadius: 1,
-                      bgcolor: 'primary.light',
-                      color: 'primary.main',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: 1,
-                      borderColor: 'primary.main',
-                      opacity: 0.8,
-                    }}
-                  >
-                    {fallbackIcon}
-                  </Box>
-                )}
-                <Typography
-                  variant='subtitle1'
-                  fontWeight='medium'
-                  noWrap
-                  sx={{
-                    fontSize: { xs: '0.875rem', sm: '1rem' },
-                  }}
-                >
-                  {site.name}
-                </Typography>
-              </Box>
-
-              {/* 描述 */}
-              <Typography
-                variant='body2'
-                color='text.secondary'
-                sx={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  flexGrow: 1,
-                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                }}
-              >
-                {site.description || '暂无描述'}
-              </Typography>
-
-              {/* 设置按钮 - 只在编辑模式显示 */}
-              {viewMode === 'edit' && (
-                <IconButton
-                  size='small'
-                  sx={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    bgcolor: 'action.hover',
-                    opacity: 0,
-                    transition: 'opacity 0.2s',
-                    '&:hover': {
-                      bgcolor: 'action.selected',
-                    },
-                    '.MuiCardActionArea-root:hover &': {
-                      opacity: 1,
-                    },
-                  }}
-                  onClick={handleSettingsClick}
-                  aria-label='网站设置'
-                >
-                  <SettingsIcon fontSize='small' />
-                </IconButton>
-              )}
-            </CardContent>
-          </CardActionArea>
+            {site.description}
+          </Typography>
         )}
-
-        {/* 快速移动分组按钮 - 编辑模式下显示 */}
-        {viewMode === 'edit' && groups && groups.length > 1 && (
-          <>
-            <IconButton
-              size='small'
-              onClick={handleGroupMenuOpen}
-              sx={{ position: 'absolute', bottom: 8, right: 8 }}
-              aria-label='移动到其他分组'
-            >
-              <DriveFileMoveIcon fontSize='small' />
-            </IconButton>
-
-            {/* 分组选择菜单 */}
-            <Menu
-              anchorEl={groupMenuAnchor}
-              open={Boolean(groupMenuAnchor)}
-              onClose={handleGroupMenuClose}
-            >
-              {groups?.filter(g => g.id !== site.group_id).map(group => (
-                <MenuItem key={group.id} onClick={() => handleMoveToGroup(group.id)}>
-                  <ListItemIcon>
-                    <DriveFileMoveIcon fontSize='small' />
-                  </ListItemIcon>
-                  <ListItemText>{group.name}</ListItemText>
-                </MenuItem>
-              ))}
-            </Menu>
-          </>
-        )}
-      </Card>
+      </Box>
     </Box>
   );
-
-  if (isEditMode) {
-    return (
-      <>
-        <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-          {cardContent}
-        </div>
-
-        {showSettings && (
-          <SiteSettingsModal
-            site={site}
-            onUpdate={onUpdate}
-            onDelete={onDelete}
-            onClose={handleCloseSettings}
-            iconApi={iconApi} // 传递iconApi给SiteSettingsModal
-          />
-        )}
-      </>
-    );
-  }
 
   return (
     <>
       {cardContent}
+
+      <ContextMenuPopper position={position} onClose={close} actions={contextActions} />
 
       {showSettings && (
         <SiteSettingsModal
           site={site}
           onUpdate={onUpdate}
           onDelete={onDelete}
-          onClose={handleCloseSettings}
-          iconApi={iconApi} // 传递iconApi给SiteSettingsModal
+          onClose={() => setShowSettings(false)}
+          iconApi={iconApi}
         />
       )}
     </>

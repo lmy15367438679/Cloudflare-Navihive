@@ -1,12 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 import { NavigationClient } from './API/client';
 import { MockNavigationClient } from './API/mock';
 import { Site, Group } from './API/http';
-import ThemeToggle from './components/ThemeToggle';
 import GroupCard from './components/GroupCard';
 import LoginForm from './components/LoginForm';
-import SearchBox from './components/SearchBox';
 import LinkChecker from './components/NewFeatures/LinkChecker';
 import BookmarkletGuide from './components/NewFeatures/BookmarkletGuide';
 import BookmarkletAddPanel from './components/NewFeatures/BookmarkletAddPanel';
@@ -17,6 +15,9 @@ import { SearchResultItem } from './utils/search';
 import { useAuth } from './hooks/useAuth';
 import { useData } from './hooks/useData';
 import { useMusicPlayer } from './hooks/useMusicPlayer';
+import AppLayout from './components/Layout/AppLayout';
+import Sidebar from './components/Layout/Sidebar';
+import TopBar from './components/Layout/TopBar';
 import './App.css';
 import {
   DndContext,
@@ -36,6 +37,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortableGroupItem from './components/SortableGroupItem';
 // Material UI 导入
+import { createAppTheme } from './theme/theme';
 import {
   Container,
   Typography,
@@ -45,7 +47,6 @@ import {
   Alert,
   Stack,
   Paper,
-  createTheme,
   ThemeProvider,
   CssBaseline,
   TextField,
@@ -55,32 +56,14 @@ import {
   DialogContentText,
   DialogTitle,
   IconButton,
-  Menu,
-  MenuItem,
-  Divider,
-  ListItemIcon,
-  ListItemText,
   Snackbar,
   InputAdornment,
   Slider,
   FormControlLabel,
   Switch,
 } from '@mui/material';
-import SortIcon from '@mui/icons-material/Sort';
-import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
-import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
-import SettingsIcon from '@mui/icons-material/Settings';
-import FileUploadIcon from '@mui/icons-material/FileUpload';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import LogoutIcon from '@mui/icons-material/Logout';
-import MenuIcon from '@mui/icons-material/Menu';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
-import LinkIcon from '@mui/icons-material/Link';
-import BookmarkIcon from '@mui/icons-material/Bookmark';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
-import PaletteIcon from '@mui/icons-material/Palette';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -121,13 +104,7 @@ function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: { mode: darkMode ? 'dark' : 'light' },
-      }),
-    [darkMode]
-  );
+  const theme = useMemo(() => createAppTheme(darkMode), [darkMode]);
 
   const toggleTheme = () => {
     setDarkMode(!darkMode);
@@ -169,7 +146,6 @@ function App() {
   const {
     isAuthChecking,
     isAuthRequired,
-    setIsAuthRequired,
     isAuthenticated,
     loginError,
     loginLoading,
@@ -205,6 +181,25 @@ function App() {
   // ========== 排序 ==========
   const [sortMode, setSortMode] = useState<SortMode>(SortMode.None);
   const [currentSortingGroupId, setCurrentSortingGroupId] = useState<number | null>(null);
+  const [activeGroupId, setActiveGroupId] = useState<number | null>(null);
+
+  const handleSidebarGroupClick = useCallback((groupId: number) => {
+    setActiveGroupId(groupId);
+    const el = document.getElementById(`group-${groupId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  const handleSearchResultClick = useCallback((result: SearchResultItem) => {
+    if (result.type === 'group') {
+      setActiveGroupId(result.id);
+      const el = document.getElementById(`group-${result.id}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (result.type === 'site' && result.groupId) {
+      setActiveGroupId(result.groupId);
+      const el = document.getElementById(`group-${result.groupId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -254,11 +249,6 @@ function App() {
     } catch (error) {
       handleError('更新站点排序失败: ' + (error as Error).message);
     }
-  };
-
-  const startGroupSort = () => {
-    setSortMode(SortMode.GroupSort);
-    setCurrentSortingGroupId(null);
   };
 
   const startSiteSort = (groupId: number) => {
@@ -396,16 +386,6 @@ function App() {
     handleCloseAddSite();
   };
 
-  // ========== 菜单 ==========
-  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const openMenu = Boolean(menuAnchorEl);
-
-  const handleMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => setMenuAnchorEl(null);
-
   // ========== 导入导出 ==========
   const [openImport, setOpenImport] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -416,7 +396,6 @@ function App() {
     setImportFile(null);
     setImportError(null);
     setOpenImport(true);
-    handleMenuClose();
   };
 
   const handleCloseImport = () => setOpenImport(false);
@@ -657,49 +636,44 @@ function App() {
         </Alert>
       </Snackbar>
 
-      <Box
-        sx={{
-          minHeight: '100vh',
-          bgcolor: 'background.default',
-          color: 'text.primary',
-          transition: 'all 0.3s ease-in-out',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        {/* 背景图片 */}
-        {configs['site.backgroundImage'] && isSecureUrl(configs['site.backgroundImage']) && (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundImage: `url(${configs['site.backgroundImage']})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              zIndex: 0,
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: (theme) =>
-                  theme.palette.mode === 'dark'
-                    ? 'rgba(0, 0, 0, ' + (1 - Number(configs['site.backgroundOpacity'])) + ')'
-                    : 'rgba(255, 255, 255, ' +
-                      (1 - Number(configs['site.backgroundOpacity'])) +
-                      ')',
-                zIndex: 1,
-              },
-            }}
+      <AppLayout
+        backgroundImage={
+          configs['site.backgroundImage'] && isSecureUrl(configs['site.backgroundImage'])
+            ? configs['site.backgroundImage']
+            : undefined
+        }
+        backgroundOpacity={configs['site.backgroundOpacity']}
+        sidebar={
+          <Sidebar
+            groups={groups}
+            activeGroupId={activeGroupId}
+            isAuthenticated={isAuthenticated}
+            viewMode={viewMode}
+            configs={configs}
+            onGroupClick={handleSidebarGroupClick}
+            onAddGroup={handleOpenAddGroup}
+            onOpenSettings={handleOpenConfig}
+            onLogout={handleLogout}
+            onSearchResultClick={handleSearchResultClick}
           />
-        )}
-
+        }
+        topBar={
+          <TopBar
+            title={configs['site.name']}
+            darkMode={darkMode}
+            isAuthenticated={isAuthenticated}
+            onToggleTheme={toggleTheme}
+            onOpenSettings={handleOpenConfig}
+            onOpenExport={() => handleExportData(groups, configs)}
+            onOpenImport={handleOpenImport}
+            onOpenLinkChecker={() => setOpenLinkChecker(true)}
+            onOpenBookmarklet={() => setOpenBookmarklet(true)}
+            onOpenBatchMove={() => setOpenBatchMove(true)}
+            onOpenEnhancedSettings={() => setOpenEnhancedSettings(true)}
+            onLogout={handleLogout}
+          />
+        }
+      >
         <Container
           maxWidth='lg'
           sx={{
@@ -709,184 +683,23 @@ function App() {
             zIndex: 2,
           }}
         >
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              mb: 5,
-              flexDirection: { xs: 'column', sm: 'row' },
-              gap: { xs: 2, sm: 0 },
-            }}
-          >
-            <Typography
-              variant='h3'
-              component='h1'
-              fontWeight='bold'
-              color='text.primary'
-              sx={{
-                fontSize: { xs: '1.75rem', sm: '2.125rem', md: '3rem' },
-                textAlign: { xs: 'center', sm: 'left' },
-              }}
-            >
-              {configs['site.name']}
-            </Typography>
-            <Stack
-              direction={{ xs: 'row', sm: 'row' }}
-              spacing={{ xs: 1, sm: 2 }}
-              alignItems='center'
-              width={{ xs: '100%', sm: 'auto' }}
-              justifyContent={{ xs: 'center', sm: 'flex-end' }}
-              flexWrap='wrap'
-              sx={{ gap: { xs: 1, sm: 2 }, py: { xs: 1, sm: 0 } }}
-            >
-              {sortMode !== SortMode.None ? (
-                <>
-                  {sortMode === SortMode.GroupSort && (
-                    <Button
-                      variant='contained'
-                      color='primary'
-                      startIcon={<SaveIcon />}
-                      onClick={handleSaveGroupOrder}
-                      size='small'
-                    >
-                      保存分组顺序
-                    </Button>
-                  )}
-                  <Button
-                    variant='outlined'
-                    color='inherit'
-                    startIcon={<CancelIcon />}
-                    onClick={cancelSort}
-                    size='small'
-                  >
-                    取消编辑
-                  </Button>
-                </>
-              ) : (
-                <>
-                  {viewMode === 'readonly' ? (
-                    <Button
-                      variant='contained'
-                      color='primary'
-                      onClick={() => setIsAuthRequired(true)}
-                      size='small'
-                    >
-                      管理员登录
-                    </Button>
-                  ) : (
-                    <>
-                      <Button
-                        variant='contained'
-                        color='primary'
-                        startIcon={<AddIcon />}
-                        onClick={handleOpenAddGroup}
-                        size='small'
-                      >
-                        新增分组
-                      </Button>
-                      <Button
-                        variant='outlined'
-                        color='primary'
-                        startIcon={<MenuIcon />}
-                        onClick={handleMenuOpen}
-                        aria-controls={openMenu ? 'navigation-menu' : undefined}
-                        aria-haspopup='true'
-                        aria-expanded={openMenu ? 'true' : undefined}
-                        size='small'
-                      >
-                        更多选项
-                      </Button>
-                      <Menu
-                        id='navigation-menu'
-                        anchorEl={menuAnchorEl}
-                        open={openMenu}
-                        onClose={handleMenuClose}
-                      >
-                        <MenuItem onClick={() => { handleMenuClose(); startGroupSort(); }}>
-                          <ListItemIcon><SortIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>编辑排序</ListItemText>
-                        </MenuItem>
-                        <MenuItem onClick={() => { handleMenuClose(); handleOpenConfig(); }}>
-                          <ListItemIcon><SettingsIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>网站设置</ListItemText>
-                        </MenuItem>
-                        <Divider />
-                        <MenuItem onClick={() => { handleMenuClose(); setOpenLinkChecker(true); }}>
-                          <ListItemIcon><LinkIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>链接检测</ListItemText>
-                        </MenuItem>
-                        <MenuItem onClick={() => { handleMenuClose(); setOpenBookmarklet(true); }}>
-                          <ListItemIcon><BookmarkIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>一键收藏</ListItemText>
-                        </MenuItem>
-                        <MenuItem onClick={() => { handleMenuClose(); setOpenBatchMove(true); }}>
-                          <ListItemIcon><DriveFileMoveIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>批量移动</ListItemText>
-                        </MenuItem>
-                        <MenuItem onClick={() => { handleMenuClose(); setOpenEnhancedSettings(true); }}>
-                          <ListItemIcon><PaletteIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>个性化设置</ListItemText>
-                        </MenuItem>
-                        <Divider />
-                        <MenuItem onClick={() => { handleMenuClose(); handleExportData(groups, configs); }}>
-                          <ListItemIcon><FileDownloadIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>导出数据</ListItemText>
-                        </MenuItem>
-                        <MenuItem onClick={handleOpenImport}>
-                          <ListItemIcon><FileUploadIcon fontSize='small' /></ListItemIcon>
-                          <ListItemText>导入数据</ListItemText>
-                        </MenuItem>
-                        {isAuthenticated && (
-                          <>
-                            <Divider />
-                            <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
-                              <ListItemIcon sx={{ color: 'error.main' }}>
-                                <LogoutIcon fontSize='small' />
-                              </ListItemIcon>
-                              <ListItemText>退出登录</ListItemText>
-                            </MenuItem>
-                          </>
-                        )}
-                      </Menu>
-                    </>
-                  )}
-                </>
-              )}
-              <ThemeToggle darkMode={darkMode} onToggle={toggleTheme} />
-            </Stack>
-          </Box>
 
-          {/* 搜索框 */}
-          {(() => {
-            const searchBoxEnabled = configs['site.searchBoxEnabled'] === 'true';
-            if (!searchBoxEnabled) return null;
-            if (viewMode === 'readonly' && configs['site.searchBoxGuestEnabled'] !== 'true') return null;
-            return (
-              <Box sx={{ mb: 4 }}>
-                <SearchBox
-                  groups={groups.map((g) => ({
-                    id: g.id,
-                    name: g.name,
-                    order_num: g.order_num,
-                    is_public: g.is_public,
-                    created_at: g.created_at,
-                    updated_at: g.updated_at,
-                  }))}
-                  sites={groups.flatMap((g) => g.sites || [])}
-                  onInternalResultClick={(result: SearchResultItem) => {
-                    if (result.type === 'group') {
-                      const el = document.getElementById(`group-${result.id}`);
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    } else if (result.type === 'site' && result.groupId) {
-                      const el = document.getElementById(`group-${result.groupId}`);
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }}
-                />
-              </Box>
-            );
-          })()}
+          {/* 排序模式工具栏 */}
+          {sortMode !== SortMode.None && (
+            <Box sx={{ display: 'flex', gap: 1, mb: 3, alignItems: 'center' }}>
+              <Typography sx={{ fontFamily: 'var(--font-heading)', fontSize: '14px', color: 'var(--text-secondary)', flex: 1 }}>
+                {sortMode === SortMode.GroupSort ? '拖拽分组以重新排序' : '拖拽站点以重新排序'}
+              </Typography>
+              {sortMode === SortMode.GroupSort && (
+                <Button variant="contained" size="small" onClick={handleSaveGroupOrder} sx={{ bgcolor: 'var(--color-accent)', '&:hover': { bgcolor: 'var(--color-accent-dim)' } }}>
+                  保存
+                </Button>
+              )}
+              <Button variant="outlined" size="small" onClick={cancelSort} sx={{ borderColor: 'var(--color-border)', color: 'var(--text-secondary)' }}>
+                取消
+              </Button>
+            </Box>
+          )}
 
           {loading && (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
@@ -1230,7 +1043,7 @@ function App() {
             </Paper>
           )}
         </Container>
-      </Box>
+      </AppLayout>
     </ThemeProvider>
   );
 }
