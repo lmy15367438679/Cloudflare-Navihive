@@ -654,6 +654,7 @@ function App() {
             onOpenSettings={handleOpenConfig}
             onLogout={handleLogout}
             onSearchResultClick={handleSearchResultClick}
+            onSidebarCollapse={() => setActiveGroupId(null)}
           />
         }
         topBar={
@@ -743,12 +744,18 @@ function App() {
           )}
 
           {!loading && groups.length > 0 && (
-            <Box sx={{
-              '& > *': { mb: 3 },
-              minHeight: '100px',
-              animation: 'contentIn 350ms ease-out',
-              '@keyframes contentIn': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
-            }}>
+            <Box
+              key={activeGroupId ?? 'all-groups'}
+              sx={{
+                '& > *': { mb: 3 },
+                minHeight: '100px',
+                animation: 'contentIn 350ms ease-out',
+                '@keyframes contentIn': {
+                  from: { opacity: 0, transform: 'translateY(12px)' },
+                  to: { opacity: 1, transform: 'translateY(0)' },
+                },
+              }}
+            >
               {sortMode === SortMode.GroupSort ? (
                 <DndContext
                   sensors={sensors}
@@ -768,7 +775,10 @@ function App() {
                 </DndContext>
               ) : (
                 <Stack spacing={3}>
-                  {groups.map((group) => (
+                  {(activeGroupId
+                    ? groups.filter((g) => g.id === activeGroupId)
+                    : groups
+                  ).map((group) => (
                     <Box key={`group-${group.id}`} id={`group-${group.id}`}>
                       <GroupCard
                         group={group}

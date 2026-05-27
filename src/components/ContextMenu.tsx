@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Box, Paper, MenuList, MenuItem, ListItemIcon, ListItemText, Divider, Popper, ClickAwayListener } from '@mui/material';
+import { Box, Paper, MenuList, MenuItem, ListItemIcon, ListItemText, Divider, ClickAwayListener } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
@@ -62,25 +62,48 @@ interface ContextMenuPopperProps {
 }
 
 export function ContextMenuPopper({ position, onClose, actions, popperRef }: ContextMenuPopperProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 计算菜单位置，防止超出视口
+  const getAdjustedPosition = useCallback(() => {
+    if (!position || !menuRef.current) return { left: position?.x ?? 0, top: position?.y ?? 0 };
+
+    const menuRect = menuRef.current.getBoundingClientRect();
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+
+    let left = position.x;
+    let top = position.y;
+
+    // 如果菜单超出右边界，向左偏移
+    if (left + menuRect.width > viewportW - 8) {
+      left = viewportW - menuRect.width - 8;
+    }
+    // 如果菜单超出下边界，向上偏移
+    if (top + menuRect.height > viewportH - 8) {
+      top = viewportH - menuRect.height - 8;
+    }
+
+    return { left, top };
+  }, [position]);
+
   if (!position) return null;
 
   return (
-    <Popper
-      open
-      anchorEl={null}
-      placement="bottom-start"
+    <Box
       ref={popperRef}
-      sx={{ zIndex: 1300 }}
-      modifiers={[
-        {
-          name: 'offset',
-          options: { offset: [position.x, position.y] },
-        },
-      ]}
+      sx={{
+        position: 'fixed',
+        left: position.x,
+        top: position.y,
+        zIndex: 1300,
+      }}
     >
       <ClickAwayListener onClickAway={onClose}>
         <Paper
+          ref={menuRef}
           elevation={0}
+          onMouseDown={(e) => e.stopPropagation()}
           sx={{
             minWidth: 160,
             bgcolor: 'var(--color-elevated)',
@@ -122,7 +145,7 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
           </MenuList>
         </Paper>
       </ClickAwayListener>
-    </Popper>
+    </Box>
   );
 }
 

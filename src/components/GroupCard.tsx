@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Site, Group } from '../API/http';
 import SiteCard from './SiteCard';
 import { GroupWithSites } from '../types';
 import EditGroupDialog from './EditGroupDialog';
+import { useContextMenu, ContextMenuPopper, groupContextActions } from './ContextMenu';
 import {
   DndContext,
   closestCenter,
@@ -79,6 +80,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
   // 添加提示消息状态
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  // 右键菜单
+  const { position: ctxPosition, close: closeCtx, open: openCtx } = useContextMenu();
+
   // 添加折叠状态
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const savedState = localStorage.getItem(`group-${group.id}-collapsed`);
@@ -133,6 +137,15 @@ const GroupCard: React.FC<GroupCardProps> = ({
       }
     }
   };
+
+  // 右键菜单处理函数
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (viewMode !== 'edit') return;
+      openCtx(e);
+    },
+    [viewMode, openCtx]
+  );
 
   // 编辑分组处理函数
   const handleEditClick = () => {
@@ -299,6 +312,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   return (
     <Paper
       elevation={0}
+      onContextMenu={handleContextMenu}
       sx={{
         borderRadius: 'var(--radius-lg)',
         p: { xs: 2, sm: 3 },
@@ -445,6 +459,31 @@ const GroupCard: React.FC<GroupCardProps> = ({
           onClose={() => setEditDialogOpen(false)}
           onSave={handleUpdateGroup}
           onDelete={handleDeleteGroup}
+        />
+      )}
+
+      {/* 分组右键菜单 */}
+      {viewMode === 'edit' && (
+        <ContextMenuPopper
+          position={ctxPosition}
+          onClose={closeCtx}
+          actions={groupContextActions(
+            () => {
+              if (group.id) {
+                if (group.sites.length < 2) {
+                  setSnackbarMessage('至少需要2个站点才能进行排序');
+                  setSnackbarOpen(true);
+                  return;
+                }
+                if (isCollapsed) setIsCollapsed(false);
+                onStartSiteSort(group.id);
+              }
+            },
+            () => setEditDialogOpen(true),
+            () => {
+              if (group.id) handleDeleteGroup(group.id);
+            }
+          )}
         />
       )}
 

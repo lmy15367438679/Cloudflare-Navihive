@@ -29,6 +29,8 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onLogout: () => void;
   onSearchResultClick: (result: SearchResultItem) => void;
+  /** 侧边栏收起时的回调 */
+  onSidebarCollapse?: () => void;
 }
 
 export default function Sidebar({
@@ -42,6 +44,7 @@ export default function Sidebar({
   onOpenSettings,
   onLogout,
   onSearchResultClick,
+  onSidebarCollapse,
 }: SidebarProps) {
   const isStatic = variant === 'static';
   const [expanded, setExpanded] = useState(isStatic);
@@ -58,8 +61,9 @@ export default function Sidebar({
   const handleMouseLeave = useCallback(() => {
     leaveTimerRef.current = setTimeout(() => {
       setExpanded(false);
+      onSidebarCollapse?.();
     }, 200);
-  }, []);
+  }, [onSidebarCollapse]);
 
   const sites: Site[] = (groups as Array<Group & { sites?: Site[] }>).flatMap((g) => g.sites || []);
 
@@ -122,6 +126,7 @@ export default function Sidebar({
             onInternalResultClick={(result) => {
               onSearchResultClick(result);
               setExpanded(false);
+              onSidebarCollapse?.();
             }}
           />
         </Box>
