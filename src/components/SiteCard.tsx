@@ -60,6 +60,7 @@ const SiteCard = memo(function SiteCard({
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       if (viewMode !== 'edit') return;
+      e.stopPropagation();
       open(e);
     },
     [viewMode, open]

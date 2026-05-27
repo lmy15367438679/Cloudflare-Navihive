@@ -142,6 +142,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       if (viewMode !== 'edit') return;
+      e.stopPropagation();
       openCtx(e);
     },
     [viewMode, openCtx]
