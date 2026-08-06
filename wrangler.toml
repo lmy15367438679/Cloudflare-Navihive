@@ -1,0 +1,23 @@
+name = "navihive"
+main = "worker/index.ts"
+compatibility_date = "2025-04-05"
+
+[assets]
+not_found_handling = "single-page-application"
+
+[observability]
+enabled = true
+
+# D1数据库绑定 — 替换 database_id 为你的实际ID
+[[d1_databases]]
+binding = "DB"
+database_name = "navigation-db"
+database_id = "YOUR_D1_DATABASE_ID"
+
+# 以下变量仅用于本地开发
+# 生产环境请通过 `wrangler secret put` 设置：
+#   wrangler secret put AUTH_USERNAME
+#   wrangler secret put AUTH_PASSWORD
+#   wrangler secret put AUTH_SECRET
+[vars]
+AUTH_ENABLED = "true"
