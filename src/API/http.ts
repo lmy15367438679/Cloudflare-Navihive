@@ -130,8 +130,14 @@ export class NavigationAPI {
     this.authEnabled = env.AUTH_ENABLED === 'true';
     this.username = env.AUTH_USERNAME || '';
     this.passwordHash = env.AUTH_PASSWORD || ''; // 现在存储的是哈希
-    this.secret = env.AUTH_SECRET || 'DefaultSecretKey';
+
+    // 认证启用时必须配置 AUTH_SECRET，禁止使用硬编码默认值
+    if (this.authEnabled && !env.AUTH_SECRET) {
+      throw new Error('AUTH_SECRET 环境变量未配置，无法启用认证。请通过 `wrangler secret put AUTH_SECRET` 设置。');
+    }
+    this.secret = env.AUTH_SECRET || '';
   }
+
 
   // 初始化数据库表
   // 修改initDB方法，将SQL语句分开执行

@@ -8,14 +8,14 @@ not_found_handling = "single-page-application"
 [observability]
 enabled = true
 
-# D1数据库绑定 — 替换 database_id 为你的实际ID
+# D1数据库绑定
 [[d1_databases]]
 binding = "DB"
 database_name = "navigation-db"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "0a15e741-7f9f-4b92-80fd-8cea099c49f6"
 
-# 以下变量仅用于本地开发
-# 生产环境请通过 `wrangler secret put` 设置：
+# 非敏感变量
+# 敏感信息 (AUTH_USERNAME, AUTH_PASSWORD, AUTH_SECRET) 请通过 `wrangler secret put` 设置：
 #   wrangler secret put AUTH_USERNAME
 #   wrangler secret put AUTH_PASSWORD
 #   wrangler secret put AUTH_SECRET

@@ -124,9 +124,10 @@ export class NavigationClient {
       const data = await response.json();
       return data.authenticated === true;
     } catch (error) {
-      console.log('认证状态检查失败:', error);
+      console.error('认证状态检查失败:', error);
       return false;
     }
+
   }
 
   // 检查认证是否已启用
