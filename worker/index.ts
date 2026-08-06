@@ -332,7 +332,22 @@ export default {
             try {
                 const api = new NavigationAPI(env);
 
+                // 自动初始化数据库（幂等操作，已初始化则跳过）
+                // 确保 groups/sites/configs 表存在，避免查询时报 500
+                try {
+                    await api.initDB();
+                } catch (initError) {
+                    log({
+                        level: 'warn',
+                        message: '数据库自动初始化失败',
+                        path: url.pathname,
+                        method,
+                        details: initError instanceof Error ? initError.message : initError,
+                    });
+                }
+
                 // 登录路由 - 不需要验证
+
                 if (path === "login" && method === "POST") {
                     try {
                         // 速率限制检查

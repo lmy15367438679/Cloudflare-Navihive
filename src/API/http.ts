@@ -131,12 +131,15 @@ export class NavigationAPI {
     this.username = env.AUTH_USERNAME || '';
     this.passwordHash = env.AUTH_PASSWORD || ''; // 现在存储的是哈希
 
-    // 认证启用时必须配置 AUTH_SECRET，禁止使用硬编码默认值
+    // 认证启用时必须配置 AUTH_SECRET，禁止使用硬编码默认值。
+    // 若未配置，降级为禁用认证（记录警告），避免整个 API 崩溃返回 500。
     if (this.authEnabled && !env.AUTH_SECRET) {
-      throw new Error('AUTH_SECRET 环境变量未配置，无法启用认证。请通过 `wrangler secret put AUTH_SECRET` 设置。');
+      console.warn('[NavigationAPI] AUTH_SECRET 未配置，认证已降级为禁用。请通过 `wrangler secret put AUTH_SECRET` 设置。');
+      this.authEnabled = false;
     }
     this.secret = env.AUTH_SECRET || '';
   }
+
 
 
   // 初始化数据库表
