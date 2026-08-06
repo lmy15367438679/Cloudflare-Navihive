@@ -179,6 +179,13 @@ export class MockNavigationClient {
     return false;
   }
 
+  // 检查认证是否已启用
+  async isAuthEnabled(): Promise<boolean> {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Mock 环境中默认启用认证
+    return true;
+  }
+
   async getGroups(): Promise<Group[]> {
     // 模拟网络延迟
     await new Promise((resolve) => setTimeout(resolve, 200));

@@ -30,7 +30,9 @@ export function useAuth({ api, onLoginSuccess, onLogout }: UseAuthOptions) {
           api.logout();
         }
         setIsAuthenticated(false);
-        setIsAuthRequired(false);
+        // 检查认证是否已启用，如果启用则需要登录
+        const authEnabled = await api.isAuthEnabled();
+        setIsAuthRequired(authEnabled);
         setViewMode('readonly');
         await onLoginSuccess?.();
       } else {
@@ -90,7 +92,9 @@ export function useAuth({ api, onLoginSuccess, onLogout }: UseAuthOptions) {
   const handleLogout = useCallback(async () => {
     await api.logout();
     setIsAuthenticated(false);
-    setIsAuthRequired(false);
+    // 登出后检查认证是否启用，如果启用则显示登录页面
+    const authEnabled = await api.isAuthEnabled();
+    setIsAuthRequired(authEnabled);
     setViewMode('readonly');
     await onLogout?.();
   }, [api, onLogout]);

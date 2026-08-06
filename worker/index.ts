@@ -4,6 +4,7 @@ import {
     type ExportData,
     type Group,
     type Site,
+    type Env,
 } from "../src/API/http";
 
 /**
@@ -61,18 +62,6 @@ class SimpleRateLimiter {
             return this.maxRequests;
         }
         return Math.max(0, this.maxRequests - record.count);
-    }
-
-    /**
-     * 定期清理过期记录 (避免内存泄漏)
-     */
-    cleanup(): void {
-        const now = Date.now();
-        for (const [key, record] of this.requests.entries()) {
-            if (now > record.resetTime) {
-                this.requests.delete(key);
-            }
-        }
     }
 }
 
@@ -484,6 +473,14 @@ export default {
                     );
                 }
 
+                // 认证启用状态检查端点
+                if (path === "auth/enabled" && method === "GET") {
+                    return createJsonResponse(
+                        { enabled: api.isAuthEnabled() },
+                        request
+                    );
+                }
+
                 // 初始化数据库接口 - 不需要验证
                 if (path === "init" && method === "GET") {
                     const initResult = await api.initDB();
@@ -584,11 +581,12 @@ export default {
                     // 根据认证状态过滤数据
                     if (!isAuthenticated) {
                         // 未认证用户只能看到公开分组下的公开站点
+                        // 使用 !== 0 判断，兼容 NULL 值（NULL 视为公开）
                         const filteredGroups = groupsWithSites
-                            .filter(group => group.is_public === 1)
+                            .filter(group => group.is_public !== 0)
                             .map(group => ({
                                 ...group,
-                                sites: group.sites.filter(site => site.is_public === 1)
+                                sites: group.sites.filter(site => site.is_public !== 0)
                             }));
                         return createJsonResponse(filteredGroups, request);
                     }
@@ -602,9 +600,8 @@ export default {
                     const params: number[] = [];
 
                     if (!isAuthenticated) {
-                        // 未认证用户只能看到公开分组
-                        query += ' WHERE is_public = ?';
-                        params.push(1);
+                        // 未认证用户只能看到公开分组（NULL 视为公开）
+                        query += ' WHERE is_public IS NOT 0';
                     }
 
                     query += ' ORDER BY order_num ASC';
@@ -671,6 +668,21 @@ export default {
                             {
                                 success: false,
                                 message: "排序号必须是数字",
+                            },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    if (
+                        data.is_public !== undefined &&
+                        (typeof data.is_public !== "number" ||
+                            (data.is_public !== 0 && data.is_public !== 1))
+                    ) {
+                        return createJsonResponse(
+                            {
+                                success: false,
+                                message: "is_public 必须是 0 (私密) 或 1 (公开)",
                             },
                             request,
                             { status: 400 }
@@ -767,12 +779,10 @@ export default {
                         params.push(parseInt(groupId));
                     }
 
-                    // 未认证用户只能看到公开分组下的公开网站
+                    // 未认证用户只能看到公开分组下的公开网站（NULL 视为公开）
                     if (!isAuthenticated) {
-                        conditions.push('g.is_public = ?');
-                        params.push(1);
-                        conditions.push('s.is_public = ?');
-                        params.push(1);
+                        conditions.push('g.is_public IS NOT 0');
+                        conditions.push('s.is_public IS NOT 0');
                     }
 
                     if (conditions.length > 0) {
@@ -875,6 +885,21 @@ export default {
                                 { status: 400 }
                             );
                         }
+                    }
+
+                    if (
+                        data.is_public !== undefined &&
+                        (typeof data.is_public !== "number" ||
+                            (data.is_public !== 0 && data.is_public !== 1))
+                    ) {
+                        return createJsonResponse(
+                            {
+                                success: false,
+                                message: "is_public 必须是 0 (私密) 或 1 (公开)",
+                            },
+                            request,
+                            { status: 400 }
+                        );
                     }
 
                     const result = await api.updateSite(id, data);
@@ -1158,16 +1183,6 @@ export default {
         return createResponse("Not Found", request, { status: 404 });
     },
 } satisfies ExportedHandler;
-
-// 环境变量接口
-interface Env {
-    DB: D1Database;
-    AUTH_ENABLED?: string;
-    AUTH_REQUIRED_FOR_READ?: string;
-    AUTH_USERNAME?: string;
-    AUTH_PASSWORD?: string;
-    AUTH_SECRET?: string;
-}
 
 // 验证用接口
 interface LoginInput {

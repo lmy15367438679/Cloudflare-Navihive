@@ -32,10 +32,14 @@ dist-ssr
 .dev.vars*
 pnpm-lock.yaml
 npm-lock.yaml
+package-lock.json
 wrangler.jsonc
 开发调试.md
 UPDATE.md
 NEXT.md
+
+# 工具生成目录
+.codegraph/
 
 # VitePress 构建产物
 docs/.vitepress/cache

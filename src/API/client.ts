@@ -129,6 +129,21 @@ export class NavigationClient {
     }
   }
 
+  // 检查认证是否已启用
+  async isAuthEnabled(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/auth/enabled`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.enabled === true;
+    } catch {
+      return false;
+    }
+  }
+
   // 分组相关API
   async getGroups(): Promise<Group[]> {
     return this.request('groups');

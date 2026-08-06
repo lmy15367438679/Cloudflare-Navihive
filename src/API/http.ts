@@ -3,27 +3,27 @@
 import { compareSync } from 'bcrypt-edge';
 
 // D1 数据库类型定义（Cloudflare Workers 运行时类型）
-interface D1Database {
+export interface D1Database {
   prepare(query: string): D1PreparedStatement;
   exec(query: string): Promise<D1ExecResult>;
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
 }
 
-interface D1PreparedStatement {
+export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
   first<T = unknown>(column?: string): Promise<T | null>;
   run<T = unknown>(): Promise<D1Result<T>>;
   all<T = unknown>(): Promise<D1Result<T>>;
 }
 
-interface D1Result<T = unknown> {
+export interface D1Result<T = unknown> {
   results?: T[];
   success: boolean;
   error?: string;
   meta?: unknown;
 }
 
-interface D1ExecResult {
+export interface D1ExecResult {
   count?: number;
   duration?: number;
 }
@@ -32,6 +32,7 @@ interface D1ExecResult {
 export interface Env {
   DB: D1Database;
   AUTH_ENABLED?: string; // 是否启用身份验证
+  AUTH_REQUIRED_FOR_READ?: string; // 只读路由是否需要认证（'true' 表示需要）
   AUTH_USERNAME?: string; // 认证用户名
   AUTH_PASSWORD?: string; // 认证密码哈希 (bcrypt)
   AUTH_SECRET?: string; // JWT密钥
@@ -364,14 +365,14 @@ export class NavigationAPI {
   // 分组相关 API
   async getGroups(): Promise<Group[]> {
     const result = await this.db
-      .prepare('SELECT id, name, order_num, created_at, updated_at FROM groups ORDER BY order_num')
+      .prepare('SELECT id, name, order_num, is_public, created_at, updated_at FROM groups ORDER BY order_num')
       .all<Group>();
     return result.results || [];
   }
 
   async getGroup(id: number): Promise<Group | null> {
     const result = await this.db
-      .prepare('SELECT id, name, order_num, created_at, updated_at FROM groups WHERE id = ?')
+      .prepare('SELECT id, name, order_num, is_public, created_at, updated_at FROM groups WHERE id = ?')
       .bind(id)
       .first<Group>();
     return result;
@@ -420,7 +421,7 @@ export class NavigationAPI {
     // 构建安全的参数化查询
     const query = `UPDATE groups SET ${updates.join(
       ', '
-    )} WHERE id = ? RETURNING id, name, order_num, created_at, updated_at`;
+    )} WHERE id = ? RETURNING id, name, order_num, is_public, created_at, updated_at`;
     params.push(id);
 
     const result = await this.db
@@ -443,7 +444,7 @@ export class NavigationAPI {
   // 网站相关 API
   async getSites(groupId?: number): Promise<Site[]> {
     let query =
-      'SELECT id, group_id, name, url, icon, description, notes, order_num, created_at, updated_at FROM sites';
+      'SELECT id, group_id, name, url, icon, description, notes, order_num, is_public, created_at, updated_at FROM sites';
     const params: (string | number)[] = [];
 
     if (groupId !== undefined) {
@@ -550,7 +551,7 @@ export class NavigationAPI {
   async getSite(id: number): Promise<Site | null> {
     const result = await this.db
       .prepare(
-        'SELECT id, group_id, name, url, icon, description, notes, order_num, created_at, updated_at FROM sites WHERE id = ?'
+        'SELECT id, group_id, name, url, icon, description, notes, order_num, is_public, created_at, updated_at FROM sites WHERE id = ?'
       )
       .bind(id)
       .first<Site>();
@@ -623,7 +624,7 @@ export class NavigationAPI {
     // 构建安全的参数化查询
     const query = `UPDATE sites SET ${updates.join(
       ', '
-    )} WHERE id = ? RETURNING id, group_id, name, url, icon, description, notes, order_num, created_at, updated_at`;
+    )} WHERE id = ? RETURNING id, group_id, name, url, icon, description, notes, order_num, is_public, created_at, updated_at`;
     params.push(id);
 
     const result = await this.db
@@ -784,6 +785,7 @@ export class NavigationAPI {
           const newGroup = await this.createGroup({
             name: group.name,
             order_num: group.order_num,
+            is_public: group.is_public ?? 1,
           });
 
           // 添加到映射
@@ -858,7 +860,7 @@ export class NavigationAPI {
   // 根据名称查询分组
   async getGroupByName(name: string): Promise<Group | null> {
     const result = await this.db
-      .prepare('SELECT id, name, order_num, created_at, updated_at FROM groups WHERE name = ?')
+      .prepare('SELECT id, name, order_num, is_public, created_at, updated_at FROM groups WHERE name = ?')
       .bind(name)
       .first<Group>();
     return result;
@@ -868,7 +870,7 @@ export class NavigationAPI {
   async getSiteByGroupIdAndUrl(groupId: number, url: string): Promise<Site | null> {
     const result = await this.db
       .prepare(
-        'SELECT id, group_id, name, url, icon, description, notes, order_num, created_at, updated_at FROM sites WHERE group_id = ? AND url = ?'
+        'SELECT id, group_id, name, url, icon, description, notes, order_num, is_public, created_at, updated_at FROM sites WHERE group_id = ? AND url = ?'
       )
       .bind(groupId, url)
       .first<Site>();
@@ -889,9 +891,4 @@ export class NavigationAPI {
     }
   }
 
-}
-
-// 创建 API 辅助函数
-export function createAPI(env: Env): NavigationAPI {
-  return new NavigationAPI(env);
 }
