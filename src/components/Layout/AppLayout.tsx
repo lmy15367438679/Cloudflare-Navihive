@@ -54,6 +54,9 @@ export default function AppLayout({
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
             zIndex: 0,
+            // Chrome 不会像 Safari 那样自动把 fixed 元素提升为合成层：
+            // 不加 will-change 时，滚动内容每帧都会在它上方重绘合成 → 掉帧。
+            willChange: 'transform',
             '&::before': {
               content: '""',
               position: 'absolute',
@@ -97,6 +100,9 @@ export default function AppLayout({
           zIndex: 2,
           ml: 0,
           minHeight: 'calc(100vh - 48px)',
+          // 让 Chrome 把滚动内容提升为合成层（合成器驱动滚动，等价移动端/正文层滚动）：
+          // 不加时 Chrome 滚动走主线程逐帧重绘，Safari 自动合成所以流畅。
+          willChange: 'transform',
         }}
       >
         {children}
