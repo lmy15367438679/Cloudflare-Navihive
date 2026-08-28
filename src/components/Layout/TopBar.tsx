@@ -1,6 +1,7 @@
-import { Box, Typography, IconButton, Menu, MenuItem, ListItemText, Divider } from '@mui/material';
+import { Box, Typography, IconButton, Menu, MenuItem, ListItemText, Divider, Tooltip } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MenuIcon from '@mui/icons-material/Menu';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ThemeToggle from '../ThemeToggle';
 import { useState } from 'react';
 
@@ -18,6 +19,10 @@ interface TopBarProps {
   onOpenEnhancedSettings: () => void;
   onLogout: () => void;
   onMobileMenuOpen?: () => void;
+  /** 一键回到全部分组 */
+  onShowAll?: () => void;
+  /** 当前是否处于某个分组视图（用于显示“回到全部”按钮） */
+  isGroupView?: boolean;
 }
 
 export default function TopBar({
@@ -34,6 +39,8 @@ export default function TopBar({
   onOpenEnhancedSettings,
   onLogout,
   onMobileMenuOpen,
+  onShowAll,
+  isGroupView = false,
 }: TopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -73,6 +80,24 @@ export default function TopBar({
       >
         {title}
       </Typography>
+        {isGroupView && (
+          <Tooltip title="回到全部">
+            <IconButton
+              size='small'
+              onClick={onShowAll}
+              aria-label="回到全部"
+              sx={{
+                color: 'var(--text-secondary)',
+                '&:hover': {
+                  color: 'var(--color-accent)',
+                  bgcolor: 'var(--color-accent-dim)',
+                },
+              }}
+            >
+              <ArrowBackIcon fontSize='small' />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

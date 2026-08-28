@@ -45,6 +45,8 @@ interface GroupCardProps {
   sortMode: 'None' | 'GroupSort' | 'SiteSort';
   currentSortingGroupId: number | null;
   viewMode?: 'readonly' | 'edit'; // 访问模式
+  /** 选中分组自动展开信号（id 命中时展开该分组） */
+  expandSignal?: { id: number; n: number } | null;
   onUpdate: (updatedSite: Site) => void;
   onDelete: (siteId: number) => void;
   onSaveSiteOrder: (groupId: number, sites: Site[]) => void;
@@ -62,6 +64,7 @@ const GroupCard = memo(function GroupCard({
   sortMode,
   currentSortingGroupId,
   viewMode = 'edit', // 默认为编辑模式
+  expandSignal,
   onUpdate,
   onDelete,
   onSaveSiteOrder,
@@ -100,6 +103,13 @@ const GroupCard = memo(function GroupCard({
   const handleToggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
   };
+
+  // 选中分组时自动展开（即使此前被折叠）：侧栏/搜索结果点击后由 App 下发信号
+  useEffect(() => {
+    if (expandSignal?.id === group.id) {
+      setIsCollapsed(false);
+    }
+  }, [expandSignal, group.id]);
 
   // 配置传感器，支持鼠标、触摸和键盘操作
   const sensors = useSensors(

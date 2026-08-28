@@ -185,24 +185,32 @@ function App() {
   const [currentSortingGroupId, setCurrentSortingGroupId] = useState<number | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null);
 
+  // 选中分组的“自动展开”信号：每次点击侧栏分组/搜索结果时携带新时间戳，
+  // 对应 GroupCard 收到后自动展开（即使该组此前被折叠）
+  const [expandSignal, setExpandSignal] = useState<{ id: number; n: number } | null>(null);
+
   const handleSidebarGroupClick = useCallback((groupId: number) => {
     setActiveGroupId(groupId);
+    setExpandSignal({ id: groupId, n: Date.now() });
     const el = document.getElementById(`group-${groupId}`);
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   const handleShowAllGroups = useCallback(() => {
     setActiveGroupId(null);
+    setExpandSignal(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   const handleSearchResultClick = useCallback((result: SearchResultItem) => {
     if (result.type === 'group') {
       setActiveGroupId(result.id);
+      setExpandSignal({ id: result.id, n: Date.now() });
       const el = document.getElementById(`group-${result.id}`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (result.type === 'site' && result.groupId) {
       setActiveGroupId(result.groupId);
+      setExpandSignal({ id: result.groupId, n: Date.now() });
       const el = document.getElementById(`group-${result.groupId}`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -679,6 +687,8 @@ function App() {
             onOpenBatchMove={() => setOpenBatchMove(true)}
             onOpenEnhancedSettings={() => setOpenEnhancedSettings(true)}
             onLogout={handleLogout}
+            onShowAll={handleShowAllGroups}
+            isGroupView={activeGroupId !== null}
           />
         }
       >
@@ -753,15 +763,9 @@ function App() {
 
           {!loading && groups.length > 0 && (
             <Box
-              key={activeGroupId ?? 'all-groups'}
               sx={{
                 '& > *': { mb: 3 },
                 minHeight: '100px',
-                animation: 'contentIn 350ms ease-out',
-                '@keyframes contentIn': {
-                  from: { opacity: 0, transform: 'translateY(12px)' },
-                  to: { opacity: 1, transform: 'translateY(0)' },
-                },
               }}
             >
               {sortMode === SortMode.GroupSort ? (
@@ -790,6 +794,7 @@ function App() {
                     <Box key={`group-${group.id}`} id={`group-${group.id}`}>
                       <GroupCard
                         group={group}
+                        expandSignal={expandSignal}
                         sortMode={sortMode === SortMode.None ? 'None' : 'SiteSort'}
                         currentSortingGroupId={currentSortingGroupId}
                         viewMode={viewMode}
@@ -1076,7 +1081,9 @@ function App() {
                 bgcolor: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 boxShadow: 'var(--shadow-lg)',
-                backdropFilter: 'blur(10px)',
+                // 性能：不用 backdrop-filter（毛玻璃）。backdrop-filter 会让 Chrome
+                // 每帧重采样面板背后整个视口内容 → 滚动持续掉帧。背景已用不透明
+                // --color-elevated，纯色 + 阴影即可表达层级，视觉几乎无差别。
               }}
             >
               <IconButton

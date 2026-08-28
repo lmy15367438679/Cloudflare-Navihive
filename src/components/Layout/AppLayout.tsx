@@ -24,12 +24,14 @@ export default function AppLayout({
 
   const topBarWithMobile =
     isValidElement(topBar)
-      ? cloneElement(topBar as React.ReactElement<any>, { onMobileMenuOpen: handleMobileMenuOpen })
+      ? cloneElement(topBar as React.ReactElement<{ onMobileMenuOpen?: () => void }>, {
+          onMobileMenuOpen: handleMobileMenuOpen,
+        })
       : topBar;
 
   const sidebarForDrawer =
     isValidElement(sidebar)
-      ? cloneElement(sidebar as React.ReactElement<any>, { variant: 'static' })
+      ? cloneElement(sidebar as React.ReactElement<{ variant?: 'hover' | 'static' }>, { variant: 'static' })
       : sidebar;
 
   return (
@@ -100,9 +102,10 @@ export default function AppLayout({
           zIndex: 2,
           ml: 0,
           minHeight: 'calc(100vh - 48px)',
-          // 让 Chrome 把滚动内容提升为合成层（合成器驱动滚动，等价移动端/正文层滚动）：
-          // 不加时 Chrome 滚动走主线程逐帧重绘，Safari 自动合成所以流畅。
-          willChange: 'transform',
+          // 注意：不给 main 加 will-change——内容含几百张卡片、总高可达上万像素，
+          // 对 Chrome 而言是超大型合成层，超出上限会被放弃合成甚至反复重试（有害）。
+          // 滚动流畅的关键是消除 hover/动画/backdrop-filter/contain 等逐帧重绘源，
+          // 让 Chrome 走默认 tile 合成即可。
         }}
       >
         {children}
