@@ -123,7 +123,13 @@ const SiteCard = memo(function SiteCard({
       {!iconError && site.icon ? (
         <Box position="relative" width={28} height={28} flexShrink={0} className='site-card-icon'>
           {!imageLoaded && (
-            <Skeleton variant="rounded" width={28} height={28} sx={{ position: 'absolute' }} />
+            <Skeleton
+              variant="rounded"
+              width={28}
+              height={28}
+              animation={false}
+              sx={{ position: 'absolute' }}
+            />
           )}
           <Box
             component="img"

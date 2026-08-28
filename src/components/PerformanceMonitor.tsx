@@ -229,7 +229,8 @@ const PerformanceMonitor = memo(function PerformanceMonitor() {
         borderRadius: 'var(--radius-md)',
         p: 1.25,
         boxShadow: 'var(--shadow-lg)',
-        backdropFilter: 'blur(10px)',
+        // 注意：backdrop-filter 会让 Chrome 每帧重采样面板背后内容，
+        // 作为诊断面板不该加重渲染负担，故用纯色（--color-elevated 已不透明）即可。
         fontFamily: 'var(--font-body)',
       }}
     >
