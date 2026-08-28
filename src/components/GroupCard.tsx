@@ -57,6 +57,10 @@ interface GroupCardProps {
   configs?: Record<string, string>; // 传入配置
   groups?: GroupWithSites[]; // 全部分组列表（用于快速移动）
   onMoveGroup?: (siteId: number, targetGroupId: number) => void; // 快速移动回调
+  /** 收藏站点 ID 集合（浏览模式置顶排序用） */
+  favoriteIds?: Set<number>;
+  /** 切换收藏状态 */
+  onToggleFavorite?: (siteId: number) => void;
 }
 
 const GroupCard = memo(function GroupCard({
@@ -75,6 +79,8 @@ const GroupCard = memo(function GroupCard({
   configs,
   groups,
   onMoveGroup,
+  favoriteIds,
+  onToggleFavorite,
 }: GroupCardProps) {
   // 添加本地状态来管理站点排序
   const [sites, setSites] = useState<Site[]>(group.sites);
@@ -187,6 +193,16 @@ const GroupCard = memo(function GroupCard({
     // 使用本地状态中的站点数据
     const sitesToRender = isCurrentEditingGroup ? sites : group.sites;
 
+    // 浏览模式：收藏站点置顶（稳定排序，保持其余站点原有顺序）
+    let orderedSites = sitesToRender;
+    if (viewMode !== 'edit' && favoriteIds && favoriteIds.size > 0) {
+      orderedSites = [...sitesToRender].sort(
+        (a, b) =>
+          (favoriteIds.has(b.id as number) ? 1 : 0) -
+          (favoriteIds.has(a.id as number) ? 1 : 0)
+      );
+    }
+
     // 如果当前不是正在编辑的分组且处于站点排序模式，不显示站点
     if (!isCurrentEditingGroup && sortMode === 'SiteSort') {
       return null;
@@ -237,6 +253,8 @@ const GroupCard = memo(function GroupCard({
                       iconApi={configs?.['site.iconApi']} // 传入iconApi配置
                       groups={groups}
                       onMoveGroup={onMoveGroup}
+                      isFavorite={favoriteIds?.has(site.id as number) ?? false}
+                      onToggleFavorite={onToggleFavorite}
                     />
                   </Box>
                 ))}
@@ -256,7 +274,7 @@ const GroupCard = memo(function GroupCard({
           margin: -1, // 抵消内部padding，确保边缘对齐
         }}
       >
-        {sitesToRender.map((site) => (
+        {orderedSites.map((site) => (
           <Box
             key={site.id}
             sx={{
@@ -280,6 +298,8 @@ const GroupCard = memo(function GroupCard({
               iconApi={configs?.['site.iconApi']} // 传入iconApi配置
               groups={groups}
               onMoveGroup={onMoveGroup}
+              isFavorite={favoriteIds?.has(site.id as number) ?? false}
+              onToggleFavorite={onToggleFavorite}
             />
           </Box>
         ))}

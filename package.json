@@ -28,6 +28,7 @@
         "@mui/icons-material": "^7.0.1",
         "@mui/material": "^7.0.1",
         "@tailwindcss/vite": "^4.1.2",
+        "@tanstack/react-virtual": "^3.14.10",
         "bcrypt-edge": "^0.1.1",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",

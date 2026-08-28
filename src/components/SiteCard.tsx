@@ -4,7 +4,8 @@ import { GroupWithSites } from '../types';
 import SiteSettingsModal from './SiteSettingsModal';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Box, Typography, Skeleton, Dialog, DialogTitle, DialogContent, List, ListItemButton, ListItemText } from '@mui/material';
+import { Box, Typography, Skeleton, Dialog, DialogTitle, DialogContent, List, ListItemButton, ListItemText, IconButton } from '@mui/material';
+import { Star as StarIcon, StarBorder as StarBorderIcon } from '@mui/icons-material';
 import { useContextMenu, ContextMenuPopper, siteContextActions } from './ContextMenu';
 import { getIconProxyUrl } from '../utils/url';
 
@@ -18,6 +19,10 @@ interface SiteCardProps {
   iconApi?: string;
   groups?: GroupWithSites[];
   onMoveGroup?: (siteId: number, targetGroupId: number) => void;
+  /** 是否已收藏（浏览模式的本地置顶收藏） */
+  isFavorite?: boolean;
+  /** 切换收藏状态 */
+  onToggleFavorite?: (siteId: number) => void;
 }
 
 const SiteCard = memo(function SiteCard({
@@ -30,6 +35,8 @@ const SiteCard = memo(function SiteCard({
   iconApi,
   groups,
   onMoveGroup,
+  isFavorite = false,
+  onToggleFavorite,
 }: SiteCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
@@ -201,6 +208,32 @@ const SiteCard = memo(function SiteCard({
           </Typography>
         )}
       </Box>
+
+      {/* 收藏星标（仅浏览模式显示，避免干扰编辑/拖拽）：
+          用原生 title 而非 MUI Tooltip，保持浏览模式零 JS hover 行为 */}
+      {viewMode !== 'edit' && onToggleFavorite && site.id != null && (
+        <IconButton
+          size='small'
+          title={isFavorite ? '取消收藏' : '收藏此站点'}
+          aria-label={isFavorite ? '取消收藏' : '收藏此站点'}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onToggleFavorite(site.id as number);
+          }}
+          sx={{
+            ml: 0.5,
+            p: 0.5,
+            color: isFavorite ? '#f5b301' : 'var(--text-tertiary)',
+            '&:hover': {
+              color: isFavorite ? '#f5b301' : 'var(--text-secondary)',
+              bgcolor: 'transparent',
+            },
+          }}
+        >
+          {isFavorite ? <StarIcon fontSize='small' /> : <StarBorderIcon fontSize='small' />}
+        </IconButton>
+      )}
     </Box>
   );
 

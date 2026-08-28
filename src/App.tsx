@@ -3,7 +3,11 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { NavigationClient } from './API/client';
 import { MockNavigationClient } from './API/mock';
 import { Site, Group } from './API/http';
+import { GroupWithSites } from './types';
 import GroupCard from './components/GroupCard';
+import VirtualizedGroupList, {
+  VirtualizedGroupListHandle,
+} from './components/VirtualizedGroupList';
 import LoginForm from './components/LoginForm';
 import LinkChecker from './components/NewFeatures/LinkChecker';
 import BookmarkletGuide from './components/NewFeatures/BookmarkletGuide';
@@ -113,6 +117,35 @@ function App() {
     localStorage.setItem('theme', !darkMode ? 'dark' : 'light');
   };
 
+  // ========== 本地收藏（置顶） ==========
+  // 浏览模式的本地收藏：仅存本机 localStorage，不落库、不影响其他访客/管理员数据。
+  // 收藏站点会在各自分组内置顶展示（见 GroupCard.renderSites 排序）。
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem('favoriteSites');
+      return raw ? new Set<number>(JSON.parse(raw)) : new Set<number>();
+    } catch {
+      return new Set<number>();
+    }
+  });
+
+  const toggleFavorite = useCallback((siteId: number) => {
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(siteId)) {
+        next.delete(siteId);
+      } else {
+        next.add(siteId);
+      }
+      try {
+        localStorage.setItem('favoriteSites', JSON.stringify([...next]));
+      } catch {
+        // 存储不可用时（无痕模式等）静默降级：仅本次会话生效
+      }
+      return next;
+    });
+  }, []);
+
   // ========== 错误提示 ==========
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -189,12 +222,28 @@ function App() {
   // 对应 GroupCard 收到后自动展开（即使该组此前被折叠）
   const [expandSignal, setExpandSignal] = useState<{ id: number; n: number } | null>(null);
 
-  const handleSidebarGroupClick = useCallback((groupId: number) => {
-    setActiveGroupId(groupId);
-    setExpandSignal({ id: groupId, n: Date.now() });
+  // 虚拟化分组列表的滚动句柄：全部视图下侧栏/搜索跳转需按 index 滚动
+  //（目标分组元素可能尚未挂载，getElementById + scrollIntoView 会失效）
+  const virtualGroupListRef = useRef<VirtualizedGroupListHandle>(null);
+
+  // 滚到某个分组：虚拟化列表挂载时用 scrollToIndex，否则回退到元素级 scrollIntoView。
+  const scrollToGroup = useCallback((groupId: number) => {
+    if (virtualGroupListRef.current) {
+      virtualGroupListRef.current.scrollToGroup(groupId);
+      return;
+    }
     const el = document.getElementById(`group-${groupId}`);
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
+
+  const handleSidebarGroupClick = useCallback(
+    (groupId: number) => {
+      setActiveGroupId(groupId);
+      setExpandSignal({ id: groupId, n: Date.now() });
+      scrollToGroup(groupId);
+    },
+    [scrollToGroup]
+  );
 
   const handleShowAllGroups = useCallback(() => {
     setActiveGroupId(null);
@@ -202,19 +251,20 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const handleSearchResultClick = useCallback((result: SearchResultItem) => {
-    if (result.type === 'group') {
-      setActiveGroupId(result.id);
-      setExpandSignal({ id: result.id, n: Date.now() });
-      const el = document.getElementById(`group-${result.id}`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (result.type === 'site' && result.groupId) {
-      setActiveGroupId(result.groupId);
-      setExpandSignal({ id: result.groupId, n: Date.now() });
-      const el = document.getElementById(`group-${result.groupId}`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
+  const handleSearchResultClick = useCallback(
+    (result: SearchResultItem) => {
+      if (result.type === 'group') {
+        setActiveGroupId(result.id);
+        setExpandSignal({ id: result.id, n: Date.now() });
+        scrollToGroup(result.id);
+      } else if (result.type === 'site' && result.groupId) {
+        setActiveGroupId(result.groupId);
+        setExpandSignal({ id: result.groupId, n: Date.now() });
+        scrollToGroup(result.groupId);
+      }
+    },
+    [scrollToGroup]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -247,29 +297,32 @@ function App() {
     }
   };
 
-  const handleSaveSiteOrder = async (_groupId: number, sites: Site[]) => {
-    try {
-      const siteOrders = sites.map((site, index) => ({
-        id: site.id as number,
-        order_num: index,
-      }));
-      const result = await api.updateSiteOrder(siteOrders);
-      if (result) {
-        await fetchData();
-      } else {
-        throw new Error('站点排序更新失败');
+  const handleSaveSiteOrder = useCallback(
+    async (_groupId: number, sites: Site[]) => {
+      try {
+        const siteOrders = sites.map((site, index) => ({
+          id: site.id as number,
+          order_num: index,
+        }));
+        const result = await api.updateSiteOrder(siteOrders);
+        if (result) {
+          await fetchData();
+        } else {
+          throw new Error('站点排序更新失败');
+        }
+        setSortMode(SortMode.None);
+        setCurrentSortingGroupId(null);
+      } catch (error) {
+        handleError('更新站点排序失败: ' + (error as Error).message);
       }
-      setSortMode(SortMode.None);
-      setCurrentSortingGroupId(null);
-    } catch (error) {
-      handleError('更新站点排序失败: ' + (error as Error).message);
-    }
-  };
+    },
+    [handleError, fetchData]
+  );
 
-  const startSiteSort = (groupId: number) => {
+  const startSiteSort = useCallback((groupId: number) => {
     setSortMode(SortMode.SiteSort);
     setCurrentSortingGroupId(groupId);
-  };
+  }, []);
 
   const cancelSort = () => {
     setSortMode(SortMode.None);
@@ -368,25 +421,73 @@ function App() {
     setNewGroup({ name: '', order_num: 0 });
   };
 
-  const handleOpenAddSite = (groupId: number) => {
-    const group = groups.find((g) => g.id === groupId);
-    const maxOrderNum = group?.sites.length
-      ? Math.max(...group.sites.map((s) => s.order_num)) + 1
-      : 0;
-    setNewSite({
-      name: '',
-      url: '',
-      icon: '',
-      description: '',
-      notes: '',
-      group_id: groupId,
-      order_num: maxOrderNum,
-      is_public: 1,
-    });
-    setOpenAddSite(true);
-  };
+  const handleOpenAddSite = useCallback(
+    (groupId: number) => {
+      const group = groups.find((g) => g.id === groupId);
+      const maxOrderNum = group?.sites.length
+        ? Math.max(...group.sites.map((s) => s.order_num)) + 1
+        : 0;
+      setNewSite({
+        name: '',
+        url: '',
+        icon: '',
+        description: '',
+        notes: '',
+        group_id: groupId,
+        order_num: maxOrderNum,
+        is_public: 1,
+      });
+      setOpenAddSite(true);
+    },
+    [groups]
+  );
 
   const handleCloseAddSite = () => setOpenAddSite(false);
+
+  // 渲染单个分组卡片：普通模式全量渲染与虚拟化列表（renderGroup）共用同一实现，
+  // 保证两种路径下 GroupCard 收到的 props 完全一致。
+  // 注意：必须定义在所有被依赖的 callback 之后（configs/handleSaveSiteOrder 等在下方声明）。
+  const renderGroupCard = useCallback(
+    (group: GroupWithSites) => (
+      <GroupCard
+        group={group}
+        expandSignal={expandSignal}
+        sortMode={sortMode === SortMode.None ? 'None' : 'SiteSort'}
+        currentSortingGroupId={currentSortingGroupId}
+        viewMode={viewMode}
+        onUpdate={handleSiteUpdate}
+        onDelete={handleSiteDelete}
+        onSaveSiteOrder={handleSaveSiteOrder}
+        onStartSiteSort={startSiteSort}
+        onAddSite={handleOpenAddSite}
+        onUpdateGroup={handleGroupUpdate}
+        onDeleteGroup={handleGroupDelete}
+        configs={configs}
+        groups={groups}
+        onMoveGroup={handleMoveGroup}
+        favoriteIds={favoriteIds}
+        onToggleFavorite={toggleFavorite}
+      />
+    ),
+    [
+      expandSignal,
+      sortMode,
+      currentSortingGroupId,
+      viewMode,
+      handleSiteUpdate,
+      handleSiteDelete,
+      handleSaveSiteOrder,
+      startSiteSort,
+      handleOpenAddSite,
+      handleGroupUpdate,
+      handleGroupDelete,
+      configs,
+      groups,
+      handleMoveGroup,
+      favoriteIds,
+      toggleFavorite,
+    ]
+  );
 
   const handleSiteInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewSite({ ...newSite, [e.target.name]: e.target.value });
@@ -785,6 +886,14 @@ function App() {
                     </Stack>
                   </SortableContext>
                 </DndContext>
+              ) : // 浏览全部视图且非编辑模式：用虚拟化列表（只渲染视口附近的分组卡片），
+              // 大幅降低几百个 GroupCard 同时挂载带来的初始绘制/滚动成本
+              !activeGroupId && viewMode !== 'edit' ? (
+                <VirtualizedGroupList
+                  ref={virtualGroupListRef}
+                  groups={groups}
+                  renderGroup={renderGroupCard}
+                />
               ) : (
                 <Stack spacing={3}>
                   {(activeGroupId
@@ -808,6 +917,8 @@ function App() {
                         configs={configs}
                         groups={groups}
                         onMoveGroup={handleMoveGroup}
+                        favoriteIds={favoriteIds}
+                        onToggleFavorite={toggleFavorite}
                       />
                     </Box>
                   ))}
