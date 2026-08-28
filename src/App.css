@@ -101,3 +101,71 @@
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ===== 内置毛玻璃拟态（个性化设置 → 动态效果 → 毛玻璃效果） =====
+   说明：对应 configs 的 `site.glassEffect`（默认开启）。开启后 <html> 挂载 `glass` 类，
+   通过把颜色令牌换成半透明值 + 对卡片/面板叠加 backdrop-filter 实现玻璃质感，
+   无需再在「自定义 CSS」里手写透明卡片样式。
+   性能：backdrop-filter 会让 Chrome 每帧重采样模糊区域背后的像素，书签较多时
+   滚动可能掉帧；如需极致滚动流畅，可在设置中关闭本效果（不影响其它功能）。 */
+
+/* 玻璃底：把「卡片/浮层」颜色令牌换成半透明（覆盖 --color-* 即可全局生效，
+   因为组件 sx 里的 bgcolor 均引用这些变量） */
+.glass.dark {
+  --color-surface: rgba(255, 255, 255, 0.08);
+  --color-card: rgba(255, 255, 255, 0.14);
+  --color-card-hover: rgba(255, 255, 255, 0.22);
+  --color-elevated: rgba(255, 255, 255, 0.18);
+  --color-border: rgba(255, 255, 255, 0.26);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.88);
+  --text-tertiary: rgba(255, 255, 255, 0.62);
+}
+
+.glass.light {
+  --color-surface: rgba(255, 255, 255, 0.46);
+  --color-card: rgba(255, 255, 255, 0.58);
+  --color-card-hover: rgba(255, 255, 255, 0.74);
+  --color-elevated: rgba(255, 255, 255, 0.72);
+  --color-border: rgba(255, 255, 255, 0.66);
+}
+
+/* 玻璃模糊：作用于 MUI 卡片/面板与导航卡片容器 */
+.glass .MuiPaper-root,
+.glass .MuiCard-root,
+.glass .site-card {
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  backdrop-filter: saturate(150%) blur(12px);
+}
+
+/* 深色模式：半透明白玻璃 + 白字 + 文字阴影（防止背景太亮看不清字） */
+.glass.dark .MuiPaper-root,
+.glass.dark .MuiCard-root,
+.glass.dark .site-card {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.26) !important;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* 浮层（对话框/菜单/下拉）需要更实的背景保证可读性 */
+.glass.dark .MuiDialog-paper,
+.glass.dark .MuiMenu-paper,
+.glass.dark .MuiPopover-paper {
+  background-color: rgba(255, 255, 255, 0.24) !important;
+}
+
+/* 浅色模式：半透明白玻璃 + 深色字 */
+.glass.light .MuiPaper-root,
+.glass.light .MuiCard-root,
+.glass.light .site-card {
+  background-color: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.72) !important;
+}
+
+/* 兼容旧模板习惯：隐藏角落里的 GitHub 角标/徽章 */
+.glass .github-corner,
+.glass .github-badge,
+.glass #github-link {
+  display: none !important;
+}

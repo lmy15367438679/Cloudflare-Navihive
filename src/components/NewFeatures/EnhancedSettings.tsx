@@ -372,7 +372,8 @@ export default function EnhancedSettings({
               <Box>
                 <Typography variant='body1'>毛玻璃效果</Typography>
                 <Typography variant='caption' color='text.secondary'>
-                  卡片和面板使用毛玻璃模糊效果
+                  卡片/面板半透明模糊，暗色下白字玻璃质感（默认开启）；
+                  书签较多时若感觉滚动掉帧可关闭
                 </Typography>
               </Box>
             }

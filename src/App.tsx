@@ -101,6 +101,8 @@ const DEFAULT_CONFIGS = {
   'site.iconApi': 'https://www.faviconextractor.com/favicon/{domain}?larger=true',
   'site.searchBoxEnabled': 'true',
   'site.searchBoxGuestEnabled': 'true',
+  // 内置毛玻璃拟态（半透明卡片 + 模糊 + 深色白字），默认开启；可在 个性化设置→动态效果 中关闭
+  'site.glassEffect': 'true',
 };
 
 function App() {
@@ -664,6 +666,13 @@ function App() {
     }
   }, [darkMode]);
 
+  // ========== 内置毛玻璃拟态（site.glassEffect，默认开启） ==========
+  // 对应 src/App.css 中的 .glass 样式（半透明卡片 + blur + 白字），无需再把手写 CSS
+  // 粘贴进「自定义 CSS」；关闭后回退为不透明令牌色。
+  useEffect(() => {
+    document.documentElement.classList.toggle('glass', configs['site.glassEffect'] === 'true');
+  }, [configs]);
+
   // BroadcastChannel 跨标签页自动刷新
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
@@ -1117,7 +1126,8 @@ function App() {
                   onChange={handleConfigInputChange} />
                 <TextField margin='dense' name='site.customCss' label='自定义CSS'
                   type='text' fullWidth multiline rows={4} variant='outlined'
-                  value={tempConfigs['site.customCss'] || ''} onChange={handleConfigInputChange} />
+                  value={tempConfigs['site.customCss'] || ''} onChange={handleConfigInputChange}
+                  helperText='毛玻璃拟态已内置并默认开启（个性化设置 → 动态效果），此处仅用于额外覆盖样式' />
                 <TextField margin='dense' name='site.iconApi' label='图标API地址'
                   type='text' fullWidth variant='outlined' value={tempConfigs['site.iconApi'] || ''}
                   onChange={handleConfigInputChange}

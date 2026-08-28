@@ -30,7 +30,7 @@ INSERT INTO sites (group_id, name, url, icon, description, notes, order_num, is_
 INSERT INTO configs (key, value) VALUES
 ('SITE_TITLE', 'NaviHive 测试站'),
 ('SITE_NAME', '导航测试'),
-('CUSTOM_CSS', '/* 自定义样式 */
-body {
-  /* 可以在这里添加自定义CSS */
-}');
+('CUSTOM_CSS', '/* 内置毛玻璃拟态已默认开启（个性化设置 → 动态效果 → 毛玻璃效果），
+   如需额外覆盖外观在此追加样式 */'),
+-- 毛玻璃拟态默认开启（与前端 DEFAULT_CONFIGS 保持一致）
+('site.glassEffect', 'true');

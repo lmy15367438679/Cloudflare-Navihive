@@ -101,6 +101,7 @@ const mockConfigs: Record<string, string> = {
   'site.title': '我的导航站',
   'site.name': '个人导航',
   'site.customCss': '',
+  'site.glassEffect': 'true',
 };
 
 // 模拟API实现
