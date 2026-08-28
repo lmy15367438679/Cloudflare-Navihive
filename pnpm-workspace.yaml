@@ -1,0 +1,7 @@
+# pnpm 依赖构建脚本白名单
+# pnpm 10.14+ 只从这里读取 onlyBuiltDependencies（package.json 的 pnpm 字段已弃用）
+# 缺失时 esbuild/sharp/workerd 的 postinstall 被拦截 → ERR_PNPM_IGNORED_BUILDS 安装失败
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
