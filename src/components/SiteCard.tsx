@@ -101,10 +101,9 @@ const SiteCard = memo(function SiteCard({
         // 性能：静态卡片不强制建 GPU 合成层（translate3d/backface-visibility 会让
         // Chrome 为每张卡各建一层，卡片一多 GPU 合成即饱和 → 桌面掉帧）。
         // 拖拽时 DnD 通过 style 注入 transform/zIndex/opacity，仍走 GPU 合成，不受影响。
-        // hover 只用背景色表达，不用 transform/box-shadow：向下滚动时卡片会连续从鼠标
-        // 下方穿过，若 hover 触发位移动画/阴影，Chrome 每帧重建 tile → 掉帧
-        // （Safari 的 tile 缓存能扛，Chrome 扛不住，这就是 Chrome 卡而 Safari 不卡的原因）。
-        transition: 'background-color 150ms ease',
+        // hover 只用背景色表达，且不设 transition（瞬时变色）：向下滚动时卡片会连续从
+        // 鼠标下方穿过，若 hover 带任何过渡动画（transform/box-shadow/background-color），
+        // Chrome 每帧重建 tile → 掉帧（Safari 的 tile 缓存能扛，Chrome 扛不住）。
         contain: 'layout',
         minHeight: 56,
         '&:hover': {

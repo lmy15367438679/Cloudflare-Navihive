@@ -191,6 +191,11 @@ function App() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
+  const handleShowAllGroups = useCallback(() => {
+    setActiveGroupId(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const handleSearchResultClick = useCallback((result: SearchResultItem) => {
     if (result.type === 'group') {
       setActiveGroupId(result.id);
@@ -657,7 +662,7 @@ function App() {
             onOpenSettings={handleOpenConfig}
             onLogout={handleLogout}
             onSearchResultClick={handleSearchResultClick}
-            onSidebarCollapse={() => setActiveGroupId(null)}
+            onShowAll={handleShowAllGroups}
           />
         }
         topBar={

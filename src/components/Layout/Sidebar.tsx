@@ -13,6 +13,7 @@ import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import FolderIcon from '@mui/icons-material/Folder';
+import AppsIcon from '@mui/icons-material/Apps';
 import SearchBox from '../SearchBox';
 import type { Group, Site } from '../../API/http';
 import type { SearchResultItem } from '../../utils/search';
@@ -29,6 +30,8 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onLogout: () => void;
   onSearchResultClick: (result: SearchResultItem) => void;
+  /** 展示全部分组 */
+  onShowAll: () => void;
   /** 侧边栏收起时的回调 */
   onSidebarCollapse?: () => void;
 }
@@ -44,6 +47,7 @@ const Sidebar = memo(function Sidebar({
   onOpenSettings,
   onLogout,
   onSearchResultClick,
+  onShowAll,
   onSidebarCollapse,
 }: SidebarProps) {
   const isStatic = variant === 'static';
@@ -139,6 +143,37 @@ const Sidebar = memo(function Sidebar({
         {/* 分组列表 */}
         <Box sx={{ flex: 1, overflowY: 'auto', px: 0.5 }}>
           <List dense>
+            <ListItemButton
+              onClick={onShowAll}
+              selected={activeGroupId === null}
+              sx={{
+                borderRadius: 'var(--radius-md)',
+                mx: 0.5,
+                mb: 0.25,
+                minHeight: 44,
+                '&.Mui-selected': {
+                  bgcolor: 'var(--color-accent-dim)',
+                  color: 'var(--color-accent)',
+                  borderLeft: '3px solid var(--color-accent)',
+                  '&:hover': {
+                    bgcolor: 'var(--color-accent-dim)',
+                  },
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
+                <AppsIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="全部站点"
+                primaryTypographyProps={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  noWrap: true,
+                }}
+              />
+            </ListItemButton>
             {groups.map((group) => (
               <Tooltip
                 key={group.id}

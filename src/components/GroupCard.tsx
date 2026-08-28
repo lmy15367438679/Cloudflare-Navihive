@@ -320,9 +320,6 @@ const GroupCard = memo(function GroupCard({
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
         contain: 'layout',
-        // 性能：离屏分组跳过 layout/paint，长页面滚动不卡（Chrome/Safari 18+ 支持）
-        contentVisibility: 'auto',
-        containIntrinsicSize: 'auto 480px',
       }}
     >
       <Box
