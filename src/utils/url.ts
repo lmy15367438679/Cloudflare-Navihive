@@ -93,6 +93,23 @@ export function extractDomain(url: string): string | null {
 }
 
 /**
+ * 将远程图标 URL 转为 CF 边缘缓存代理 URL（/api/icon）
+ * - data: / 相对路径原样返回（不代理）
+ * - 非法 URL 原样返回（交给 img onError 回退字母图标）
+ */
+export function getIconProxyUrl(icon: string): string {
+  if (!icon) return icon;
+  if (icon.startsWith('data:') || icon.startsWith('/')) return icon;
+  try {
+    const parsed = new URL(icon);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return icon;
+  } catch {
+    return icon;
+  }
+  return `/api/icon?url=${encodeURIComponent(icon)}`;
+}
+
+/**
  * 清理 CSS，防止 XSS 攻击
  */
 export function sanitizeCSS(css: string): string {

@@ -80,6 +80,28 @@ const READ_ONLY_ROUTES = [
 ] as const;
 
 /**
+ * 判断主机名是否为禁止回源的本地/内网/保留地址（防 SSRF，供图标代理使用）
+ */
+function isBlockedHost(hostname: string): boolean {
+    const host = hostname.toLowerCase().replace(/^\[|\]$/g, ''); // 去掉 IPv6 方括号
+    const BLOCKED_HOSTNAMES = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+    if (BLOCKED_HOSTNAMES.includes(host)) return true;
+
+    const PRIVATE_PATTERNS = [
+        /^10\./, // 10.0.0.0/8
+        /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12
+        /^192\.168\./, // 192.168.0.0/16
+        /^169\.254\./, // 169.254.0.0/16 Link-local
+        /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // 100.64.0.0/10 CGNAT
+        /^0\./, // 0.0.0.0/8
+        /^fe80:/i, // IPv6 link-local
+        /^fc/i, // IPv6 unique local fc00::/7
+        /^::1$/i, // IPv6 loopback
+    ];
+    return PRIVATE_PATTERNS.some((pattern) => pattern.test(host));
+}
+
+/**
  * 生成唯一错误 ID
  */
 function generateErrorId(): string {
@@ -503,6 +525,92 @@ export default {
                         return createResponse("数据库已经初始化过，无需重复初始化", request, { status: 200 });
                     }
                     return createResponse("数据库初始化成功", request, { status: 200 });
+                }
+
+                // 图标代理路由 - 通过 CF 边缘缓存加速远程 favicon（公开只读，无需认证）
+                // 结合 Cloudflare 特性：所有站点图标统一由 CF 边缘 CDN 分发，二次访问零回源，
+                // 显著降低图标加载延迟与浏览器并发请求压力（配合前端 loading="lazy" 使用）
+                if (path === "icon" && method === "GET") {
+                    const target = url.searchParams.get("url");
+                    if (!target) {
+                        return createResponse("缺少 url 参数", request, { status: 400 });
+                    }
+
+                    // 防 SSRF：只允许公网 http/https，拒绝本地/内网/保留地址
+                    let parsedTarget: URL;
+                    try {
+                        parsedTarget = new URL(target);
+                    } catch {
+                        return createResponse("无效的图标 URL", request, { status: 400 });
+                    }
+
+                    if (!["http:", "https:"].includes(parsedTarget.protocol)) {
+                        return createResponse("不支持的协议", request, { status: 400 });
+                    }
+
+                    if (isBlockedHost(parsedTarget.hostname)) {
+                        return createResponse("禁止访问的地址", request, { status: 403 });
+                    }
+
+                    const cache = caches.default;
+                    const cacheKey = new Request(
+                        `https://${url.host}/api/icon?url=${encodeURIComponent(target)}`,
+                        { method: "GET" }
+                    );
+
+                    // 1. 尝试命中 CF 边缘缓存
+                    const cached = await cache.match(cacheKey);
+                    if (cached) {
+                        return cached;
+                    }
+
+                    // 2. 回源拉取（5s 超时，伪装浏览器 UA）
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                        const upstream = await fetch(target, {
+                            method: "GET",
+                            signal: controller.signal,
+                            headers: {
+                                "User-Agent":
+                                    "Mozilla/5.0 (compatible; Navihive/1.0; +https://navihive.dev)",
+                                Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                            },
+                        });
+                        clearTimeout(timeoutId);
+
+                        if (!upstream.ok) {
+                            return createResponse("图标获取失败", request, { status: 404 });
+                        }
+
+                        const contentType = (upstream.headers.get("Content-Type") || "").split(";")[0].trim();
+                        if (!contentType.startsWith("image/")) {
+                            return createResponse("非图片内容", request, { status: 415 });
+                        }
+
+                        // 限制体积，favicon 正常远小于 512KB
+                        const body = await upstream.arrayBuffer();
+                        if (body.byteLength > 512 * 1024) {
+                            return createResponse("图标过大", request, { status: 413 });
+                        }
+
+                        const response = new Response(body, {
+                            status: 200,
+                            headers: {
+                                "Content-Type": contentType || "image/png",
+                                "Cache-Control": "public, max-age=86400, s-maxage=604800",
+                                "Access-Control-Allow-Origin": "*",
+                            },
+                        });
+
+                        // 3. 写入 CF 边缘缓存（7 天 TTL）
+                        await cache.put(cacheKey, response.clone(), { ttl: 60 * 60 * 24 * 7 });
+
+                        return response;
+                    } catch {
+                        return createResponse("图标获取失败", request, { status: 404 });
+                    }
                 }
 
                 // 验证中间件 - 条件认证

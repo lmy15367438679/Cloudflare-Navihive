@@ -1,7 +1,7 @@
 // src/components/SiteSettingsModal.tsx
 import { useState } from 'react';
 import { Site, Group } from '../API/http';
-import { extractDomain, isSecureUrl } from '../utils/url';
+import { extractDomain, isSecureUrl, getIconProxyUrl } from '../utils/url';
 // Material UI 导入
 import {
   Dialog,
@@ -63,8 +63,10 @@ export default function SiteSettingsModal({
     is_public: site.is_public ?? 1, // 默认为公开
   });
 
-  // 用于预览图标
-  const [iconPreview, setIconPreview] = useState<string | null>(site.icon || null);
+  // 用于预览图标（经 CF 边缘缓存代理加载，与卡片展示一致）
+  const [iconPreview, setIconPreview] = useState<string | null>(
+    site.icon ? getIconProxyUrl(site.icon) : null
+  );
 
   // 验证错误
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -106,7 +108,7 @@ export default function SiteSettingsModal({
 
     // 仅当输入看起来像有效的图片URL时才设置预览
     if (value && isValidImageUrl(value)) {
-      setIconPreview(value);
+      setIconPreview(getIconProxyUrl(value));
     } else {
       setIconPreview(null);
     }

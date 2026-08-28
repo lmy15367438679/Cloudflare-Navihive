@@ -6,6 +6,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Box, Typography, Skeleton, Dialog, DialogTitle, DialogContent, List, ListItemButton, ListItemText } from '@mui/material';
 import { useContextMenu, ContextMenuPopper, siteContextActions } from './ContextMenu';
+import { getIconProxyUrl } from '../utils/url';
 
 interface SiteCardProps {
   site: Site;
@@ -126,10 +127,11 @@ const SiteCard = memo(function SiteCard({
           )}
           <Box
             component="img"
-            src={site.icon}
+            src={getIconProxyUrl(site.icon)}
             alt=""
             loading="lazy"
             decoding="async"
+            fetchPriority="low"
             sx={{
               width: 28,
               height: 28,
