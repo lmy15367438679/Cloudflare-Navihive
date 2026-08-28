@@ -1,7 +1,7 @@
 import { Box, Typography, IconButton, Menu, MenuItem, ListItemText, Divider, Tooltip } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MenuIcon from '@mui/icons-material/Menu';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import HomeIcon from '@mui/icons-material/Home';
 import ThemeToggle from '../ThemeToggle';
 import { useState } from 'react';
 
@@ -94,7 +94,7 @@ export default function TopBar({
                 },
               }}
             >
-              <ArrowBackIcon fontSize='small' />
+              <HomeIcon fontSize='small' />
             </IconButton>
           </Tooltip>
         )}

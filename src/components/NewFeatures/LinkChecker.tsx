@@ -74,8 +74,8 @@ export default function LinkChecker({ open, onClose, sites, apiBaseUrl = '/api' 
         if (data.success && data.results) {
           allResults.push(...data.results);
         }
-      } catch (err) {
-        // 如果API调用失败，使用前端模拟检测
+      } catch {
+        // API 调用失败，使用前端模拟检测
         for (const url of batch) {
           allResults.push({
             url,

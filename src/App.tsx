@@ -1118,7 +1118,8 @@ function App() {
           )}
         </Container>
       </AppLayout>
-      <PerformanceMonitor />
+      {/* 性能监控：默认仅开发环境显示；生产如需排查，构建时设置 VITE_SHOW_PERF=true */}
+      {(import.meta.env.DEV || import.meta.env.VITE_SHOW_PERF === 'true') && <PerformanceMonitor />}
     </ThemeProvider>
   );
 }
