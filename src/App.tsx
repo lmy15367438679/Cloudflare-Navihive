@@ -19,6 +19,7 @@ import { useMusicPlayer } from './hooks/useMusicPlayer';
 import AppLayout from './components/Layout/AppLayout';
 import Sidebar from './components/Layout/Sidebar';
 import TopBar from './components/Layout/TopBar';
+import PerformanceMonitor from './components/PerformanceMonitor';
 import './App.css';
 import {
   DndContext,
@@ -118,11 +119,11 @@ function App() {
   const [importResultOpen, setImportResultOpen] = useState(false);
   const [importResultMessage, setImportResultMessage] = useState('');
 
-  const handleError = (errorMessage: string) => {
+  const handleError = useCallback((errorMessage: string) => {
     setSnackbarMessage(errorMessage);
     setSnackbarOpen(true);
     console.error(errorMessage);
-  };
+  }, []);
 
   const handleCloseSnackbar = () => setSnackbarOpen(false);
 
@@ -503,7 +504,8 @@ function App() {
       channel = new BroadcastChannel('navihive-updates');
       channel.onmessage = (event) => {
         if (event.data?.type === 'bookmark-added' || event.data?.type === 'data-changed') {
-          fetchData();
+          // 静默刷新：不触发骨架屏，避免整页闪烁
+          fetchData({ silent: true });
         }
       };
     } catch {
@@ -523,7 +525,8 @@ function App() {
           isFirstVisibleRef.current = false;
           return;
         }
-        fetchData();
+        // 静默刷新：切回标签页时后台更新，避免骨架屏闪烁
+        fetchData({ silent: true });
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -1103,6 +1106,7 @@ function App() {
           )}
         </Container>
       </AppLayout>
+      <PerformanceMonitor />
     </ThemeProvider>
   );
 }

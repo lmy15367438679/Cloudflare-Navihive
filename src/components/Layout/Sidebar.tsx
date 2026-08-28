@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { memo, useState, useCallback, useRef, useMemo } from 'react';
 import {
   Box,
   List,
@@ -33,7 +33,7 @@ interface SidebarProps {
   onSidebarCollapse?: () => void;
 }
 
-export default function Sidebar({
+const Sidebar = memo(function Sidebar({
   groups,
   activeGroupId,
   isAuthenticated,
@@ -65,7 +65,10 @@ export default function Sidebar({
     }, 200);
   }, [onSidebarCollapse]);
 
-  const sites: Site[] = (groups as Array<Group & { sites?: Site[] }>).flatMap((g) => g.sites || []);
+  const sites: Site[] = useMemo(
+    () => (groups as Array<Group & { sites?: Site[] }>).flatMap((g) => g.sites || []),
+    [groups]
+  );
 
   return (
     <>
@@ -293,4 +296,7 @@ export default function Sidebar({
       </Box>
     </>
   );
-}
+});
+
+export default Sidebar;
+

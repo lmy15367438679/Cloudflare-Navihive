@@ -82,6 +82,7 @@ const SiteCard = memo(function SiteCard({
   const cardContent = (
     <Box
       ref={setNodeRef}
+      className='site-card'
       style={isEditMode ? style : undefined}
       {...(isEditMode ? { ...attributes, ...listeners } : {})}
       onClick={isEditMode ? undefined : handleCardClick}
@@ -96,13 +97,19 @@ const SiteCard = memo(function SiteCard({
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
         cursor: isEditMode ? 'grab' : 'pointer',
-        transform: 'translateY(0)',
-        transition: 'background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease',
+        transform: 'translate3d(0, 0, 0)',
+        backfaceVisibility: 'hidden',
+        transition: 'background-color 150ms ease, transform 150ms cubic-bezier(0.2, 0, 0, 1), box-shadow 150ms ease',
+        contain: 'layout',
         minHeight: 56,
         '&:hover': {
           bgcolor: 'var(--color-card-hover)',
-          transform: isEditMode ? 'none' : 'translateY(-2px)',
+          transform: isEditMode ? 'none' : 'translate3d(0, -2px, 0)',
           boxShadow: isEditMode ? 'none' : 'var(--shadow-md)',
+        },
+        '&:active': {
+          transform: isEditMode ? 'none' : 'translate3d(0, 0, 0)',
+          transitionDuration: '60ms',
         },
         ...(isDragging && {
           opacity: 0.7,
@@ -112,7 +119,7 @@ const SiteCard = memo(function SiteCard({
     >
       {/* Icon */}
       {!iconError && site.icon ? (
-        <Box position="relative" width={28} height={28} flexShrink={0}>
+        <Box position="relative" width={28} height={28} flexShrink={0} className='site-card-icon'>
           {!imageLoaded && (
             <Skeleton variant="rounded" width={28} height={28} sx={{ position: 'absolute' }} />
           )}
@@ -120,12 +127,16 @@ const SiteCard = memo(function SiteCard({
             component="img"
             src={site.icon}
             alt=""
+            loading="lazy"
+            decoding="async"
             sx={{
               width: 28,
               height: 28,
               borderRadius: '4px',
               objectFit: 'contain',
               display: imageLoaded ? 'block' : 'none',
+              transform: 'translateZ(0)',
+              backfaceVisibility: 'hidden',
             }}
             onError={() => setIconError(true)}
             onLoad={() => setImageLoaded(true)}

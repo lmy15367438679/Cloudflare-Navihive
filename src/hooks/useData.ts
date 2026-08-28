@@ -1,5 +1,5 @@
 // src/hooks/useData.ts
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Site, Group, GroupWithSites, ExportData } from '../API/http';
 import { NavigationClient } from '../API/client';
 import { MockNavigationClient } from '../API/mock';
@@ -9,25 +9,39 @@ interface UseDataOptions {
   onError: (message: string) => void;
 }
 
+interface FetchDataOptions {
+  /** 静默刷新：已有数据时不触发骨架屏，避免整页重绘闪烁 */
+  silent?: boolean;
+}
+
 export function useData({ api, onError }: UseDataOptions) {
   const [groups, setGroups] = useState<GroupWithSites[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasDataRef = useRef(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const groupsWithSites = await api.getGroupsWithSites();
-      setGroups(groupsWithSites);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '未知错误';
-      onError('加载数据失败: ' + message);
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [api, onError]);
+  const fetchData = useCallback(
+    async (options?: FetchDataOptions) => {
+      const silent = options?.silent ?? false;
+      try {
+        setError(null);
+        // 静默刷新：已有数据时保持当前 UI 稳定，后台更新数据
+        if (!silent || !hasDataRef.current) {
+          setLoading(true);
+        }
+        const groupsWithSites = await api.getGroupsWithSites();
+        hasDataRef.current = true;
+        setGroups(groupsWithSites);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '未知错误';
+        onError('加载数据失败: ' + message);
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, onError]
+  );
 
   // 更新站点
   const handleSiteUpdate = useCallback(

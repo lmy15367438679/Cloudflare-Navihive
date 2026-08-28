@@ -14,6 +14,61 @@
   contain: layout;
 }
 
+/* ===== 全局性能优化 ===== */
+
+/* 复合层（compositing）提示 —— 只对高频交互元素启用，减少重绘面积 */
+.gpu-layer {
+  will-change: transform;
+}
+
+/* 滚动容器启用 GPU 加速与布局隔离 */
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* 站点图标：固定尺寸 + 防抖动 + 平滑过渡（不常驻 will-change，避免小图标占用复合层内存） */
+.site-card-icon img {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* 卡片容器：布局隔离，减少父级重排时对自身子树的冲击 */
+.group-card,
+.site-card {
+  contain: layout style;
+}
+
+/* 内容可见性（现代浏览器支持）—— 视口外的卡片延迟渲染 */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 60px;
+}
+
+/* 按钮 / 卡片 active 态硬件加速 */
+.pressable {
+  transition: transform 60ms cubic-bezier(0.2, 0, 0, 1),
+              background-color 150ms ease,
+              box-shadow 150ms ease;
+}
+
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* 滚动位置固定：防止搜索/侧边栏操作时页面抖动 */
+html, body {
+  contain: style;
+}
+
+/* 搜索面板 / 下拉菜单：使用 transform 而非 top/left 动画 */
+.search-panel-fade {
+  transform-origin: top center;
+}
+
+
 /* 背景图片相关样式 */
 .with-background-image {
   position: relative;

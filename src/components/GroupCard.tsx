@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { Site, Group } from '../API/http';
 import SiteCard from './SiteCard';
 import { GroupWithSites } from '../types';
@@ -57,7 +57,7 @@ interface GroupCardProps {
   onMoveGroup?: (siteId: number, targetGroupId: number) => void; // 快速移动回调
 }
 
-const GroupCard: React.FC<GroupCardProps> = ({
+const GroupCard = memo(function GroupCard({
   group,
   sortMode,
   currentSortingGroupId,
@@ -72,7 +72,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   configs,
   groups,
   onMoveGroup,
-}) => {
+}: GroupCardProps) {
   // 添加本地状态来管理站点排序
   const [sites, setSites] = useState<Site[]>(group.sites);
   // 添加编辑弹窗的状态
@@ -309,16 +309,17 @@ const GroupCard: React.FC<GroupCardProps> = ({
     setSnackbarOpen(false);
   };
 
-  // 修改分组标题区域的渲染
   return (
     <Paper
       elevation={0}
       onContextMenu={handleContextMenu}
+      className='group-card'
       sx={{
         borderRadius: 'var(--radius-lg)',
         p: { xs: 2, sm: 3 },
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
+        contain: 'layout',
       }}
     >
       <Box
@@ -485,6 +486,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
       </Snackbar>
     </Paper>
   );
-};
+});
 
 export default GroupCard;
