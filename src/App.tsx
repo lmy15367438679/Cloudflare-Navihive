@@ -24,6 +24,7 @@ import AppLayout from './components/Layout/AppLayout';
 import Sidebar from './components/Layout/Sidebar';
 import TopBar from './components/Layout/TopBar';
 import PerformanceMonitor from './components/PerformanceMonitor';
+import DebugLog from './components/NewFeatures/DebugLog';
 import './App.css';
 import {
   DndContext,
@@ -144,6 +145,58 @@ function App() {
       }
       return next;
     });
+  }, []);
+
+  // ========== 开发者选项（本地诊断工具） ==========
+  // 存 localStorage（仅当前浏览器生效），不落 D1 全局配置。
+  // fps 默认值：开发环境开、生产关，可在 个性化设置 → 开发者 中随时切换。
+  const DEV_OPTIONS_KEY = 'navihive_dev_options';
+  const [devOptions, setDevOptions] = useState(() => {
+    try {
+      const raw = localStorage.getItem(DEV_OPTIONS_KEY);
+      const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      return {
+        fps: typeof parsed.fps === 'boolean' ? parsed.fps : import.meta.env.DEV,
+        log: parsed.log === true,
+      };
+    } catch {
+      return { fps: import.meta.env.DEV, log: false };
+    }
+  });
+
+  const handleDevOptionChange = useCallback((key: 'fps' | 'log', value: boolean) => {
+    setDevOptions((prev) => {
+      const next = { ...prev, [key]: value };
+      try {
+        localStorage.setItem(DEV_OPTIONS_KEY, JSON.stringify(next));
+      } catch {
+        // 存储不可用时静默降级
+      }
+      return next;
+    });
+  }, []);
+
+  // ========== 全局搜索快捷键（⌘K / Ctrl+K / /） ==========
+  // 放在 App 顶层统一拦截：即使桌面侧栏处于收起（opacity:0）状态也能聚焦搜索框。
+  // 通过 CustomEvent 通知 Sidebar 展开 + SearchBox 聚焦，两端解耦、单点控制。
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+    };
+
+    const handleGlobalShortcut = (e: KeyboardEvent) => {
+      const isFocusSearch = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+      const isSlashSearch = e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target);
+      if (!isFocusSearch && !isSlashSearch) return;
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('navihive:expand-sidebar'));
+      window.dispatchEvent(new CustomEvent('navihive:focus-search'));
+    };
+
+    document.addEventListener('keydown', handleGlobalShortcut, true);
+    return () => document.removeEventListener('keydown', handleGlobalShortcut, true);
   }, []);
 
   // ========== 错误提示 ==========
@@ -1172,6 +1225,8 @@ function App() {
               setConfigs((prev) => ({ ...prev, [key]: value }));
             }}
             onMusicPlay={handlePlayMusic}
+            devOptions={devOptions}
+            onDevOptionsChange={handleDevOptionChange}
           />
 
           {/* 全局音乐播放器 */}
@@ -1229,8 +1284,10 @@ function App() {
           )}
         </Container>
       </AppLayout>
-      {/* 性能监控：默认仅开发环境显示；生产如需排查，构建时设置 VITE_SHOW_PERF=true */}
-      {(import.meta.env.DEV || import.meta.env.VITE_SHOW_PERF === 'true') && <PerformanceMonitor />}
+      {/* 性能监控：由 个性化设置 → 开发者 开关控制（本地 localStorage）；VITE_SHOW_PERF 仅作构建时兜底 */}
+      {(devOptions.fps || import.meta.env.VITE_SHOW_PERF === 'true') && <PerformanceMonitor />}
+      {/* 调试日志浮层（开发者选项） */}
+      {devOptions.log && <DebugLog />}
     </ThemeProvider>
   );
 }

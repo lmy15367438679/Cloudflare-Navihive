@@ -47,11 +47,13 @@ interface SearchBoxProps {
   groups: Group[];
   sites: Site[];
   onInternalResultClick?: (result: SearchResultItem) => void;
+  /** 是否响应全局 ⌘K/Ctrl+K（仅桌面侧栏实例启用，移动端抽屉副本忽略避免重复聚焦） */
+  listenGlobalShortcut?: boolean;
 }
 
 type SearchMode = 'internal' | 'external';
 
-const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultClick }) => {
+const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultClick, listenGlobalShortcut = true }) => {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<SearchMode>('internal');
   const [results, setResults] = useState<SearchResultItem[]>([]);
@@ -265,18 +267,16 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
     }
   }, []);
 
-  // 全局快捷键支持 (Ctrl+K / Cmd+K)
+  // 响应 App 层派发的 ⌘K/Ctrl+K 全局快捷键（由 App 先展开侧栏再派发事件聚焦，
+  // 避免侧栏收起时焦点落在不可见输入框上而看似"无响应"）。
   useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
+    if (!listenGlobalShortcut) return;
+    const handleFocusSearch = () => {
+      inputRef.current?.focus();
     };
-
-    document.addEventListener('keydown', handleGlobalKeyDown);
-    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+    window.addEventListener('navihive:focus-search', handleFocusSearch);
+    return () => window.removeEventListener('navihive:focus-search', handleFocusSearch);
+  }, [listenGlobalShortcut]);
 
   return (
     <Box

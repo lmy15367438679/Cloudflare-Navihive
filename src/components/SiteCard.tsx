@@ -209,13 +209,16 @@ const SiteCard = memo(function SiteCard({
         )}
       </Box>
 
-      {/* 收藏星标（仅浏览模式显示，避免干扰编辑/拖拽）：
-          用原生 title 而非 MUI Tooltip，保持浏览模式零 JS hover 行为 */}
-      {viewMode !== 'edit' && onToggleFavorite && site.id != null && (
+      {/* 收藏星标（浏览与管理员编辑模式都显示）：
+          用原生 title 而非 MUI Tooltip，保持零 JS hover 行为；
+          编辑模式用 pointerdown/mousedown 拦截，避免星标点击触发 DnD 拖拽 */}
+      {onToggleFavorite && site.id != null && (
         <IconButton
           size='small'
           title={isFavorite ? '取消收藏' : '收藏此站点'}
           aria-label={isFavorite ? '取消收藏' : '收藏此站点'}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();

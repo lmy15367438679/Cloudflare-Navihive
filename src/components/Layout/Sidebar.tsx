@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef, useMemo } from 'react';
+import { memo, useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   Box,
   List,
@@ -74,6 +74,13 @@ const Sidebar = memo(function Sidebar({
     [groups]
   );
 
+  // 响应 App 层派发的 ⌘K/Ctrl+K：桌面 hover 模式侧栏初始收起，先展开再聚焦搜索框
+  useEffect(() => {
+    const onExpandSidebar = () => setExpanded(true);
+    window.addEventListener('navihive:expand-sidebar', onExpandSidebar);
+    return () => window.removeEventListener('navihive:expand-sidebar', onExpandSidebar);
+  }, []);
+
   return (
     <>
       {/* 触发条 - 仅 hover 模式 */}
@@ -130,6 +137,7 @@ const Sidebar = memo(function Sidebar({
               updated_at: g.updated_at,
             }))}
             sites={sites}
+            listenGlobalShortcut={!isStatic}
             onInternalResultClick={(result) => {
               onSearchResultClick(result);
               setExpanded(false);

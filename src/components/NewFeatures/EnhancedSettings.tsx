@@ -27,6 +27,7 @@ import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import WallpaperIcon from '@mui/icons-material/Wallpaper';
 import AnimationIcon from '@mui/icons-material/Animation';
 import SpeedIcon from '@mui/icons-material/Speed';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -46,12 +47,22 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
+export interface DevOptions {
+  /** 帧率监测面板（FPS） */
+  fps: boolean;
+  /** 调试日志面板 */
+  log: boolean;
+}
+
 interface EnhancedSettingsProps {
   open: boolean;
   onClose: () => void;
   configs: Record<string, string>;
   onSaveConfig: (key: string, value: string) => Promise<void>;
   onMusicPlay?: (url: string) => void; // 通知全局播放器播放音乐
+  /** 开发者选项（仅本机 localStorage，与 D1 全局配置无关） */
+  devOptions?: DevOptions;
+  onDevOptionsChange?: (key: keyof DevOptions, value: boolean) => void;
 }
 
 // 预设壁纸列表
@@ -73,6 +84,8 @@ export default function EnhancedSettings({
   configs,
   onSaveConfig,
   onMusicPlay,
+  devOptions = { fps: false, log: false },
+  onDevOptionsChange,
 }: EnhancedSettingsProps) {
   const [tabValue, setTabValue] = useState(0);
   const [tempConfigs, setTempConfigs] = useState<Record<string, string>>({});
@@ -166,13 +179,16 @@ export default function EnhancedSettings({
       <Tabs
         value={tabValue}
         onChange={(_, v) => setTabValue(v)}
-        variant='fullWidth'
+        variant='scrollable'
+        scrollButtons='auto'
+        allowScrollButtonsMobile
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab icon={<MusicNoteIcon />} label='背景音乐' />
         <Tab icon={<WallpaperIcon />} label='壁纸' />
         <Tab icon={<AnimationIcon />} label='动态效果' />
         <Tab icon={<SpeedIcon />} label='性能优化' />
+        <Tab icon={<BugReportIcon />} label='开发者' />
       </Tabs>
 
       <DialogContent>
@@ -491,6 +507,49 @@ export default function EnhancedSettings({
             onChange={(e) => handleConfigChange('site.iconApi', e.target.value)}
             placeholder='https://www.faviconextractor.com/favicon/{domain}?larger=true'
             helperText='使用 {domain} 作为域名占位符'
+          />
+        </TabPanel>
+
+        {/* 开发者选项（仅本机 localStorage，与全局 D1 配置无关） */}
+        <TabPanel value={tabValue} index={4}>
+          <Alert severity='warning' sx={{ mb: 2 }}>
+            开发者选项仅作用于当前浏览器（localStorage），用于诊断问题，不会保存到网站全局配置，也不影响其他访客。
+          </Alert>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={devOptions.fps}
+                onChange={(e) => onDevOptionsChange?.('fps', e.target.checked)}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant='body1'>帧率监测面板（FPS）</Typography>
+                <Typography variant='caption' color='text.secondary'>
+                  右下角实时显示 FPS / 最低帧 / 均值 / 长任务 / 内存，用于检查滚动与动画是否掉帧。开启后快捷键 Shift+P 可随时隐藏或再显示面板。
+                </Typography>
+              </Box>
+            }
+            sx={{ mb: 2, display: 'flex' }}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={devOptions.log}
+                onChange={(e) => onDevOptionsChange?.('log', e.target.checked)}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant='body1'>调试日志面板</Typography>
+                <Typography variant='caption' color='text.secondary'>
+                  捕获页面的 console 输出与 JS 报错，右下角浮层实时查看，便于不打开 DevTools 也能快速排查问题。
+                </Typography>
+              </Box>
+            }
+            sx={{ display: 'flex' }}
           />
         </TabPanel>
       </DialogContent>
