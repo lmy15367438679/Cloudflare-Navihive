@@ -103,6 +103,17 @@ const DEFAULT_CONFIGS = {
   'site.searchBoxGuestEnabled': 'true',
   // 内置毛玻璃拟态（半透明卡片 + 模糊 + 深色白字），默认开启；可在 个性化设置→动态效果 中关闭
   'site.glassEffect': 'true',
+  // 背景特效：粒子 / 背景虚化（动态效果 → 背景特效）
+  'site.particlesEnabled': 'false',
+  'site.backgroundBlur': 'false',
+  // 动效：卡片悬浮 / 平滑滚动 / 减少动画（动态效果）
+  'site.cardAnimation': 'false',
+  'site.smoothScroll': 'false',
+  'site.reduceMotion': 'false',
+  // 性能优化：紧凑模式 / 图标懒加载 / 图标本地缓存
+  'site.compactMode': 'false',
+  'site.lazyLoadImages': 'false',
+  'site.imageCache': 'false',
 };
 
 function App() {
@@ -398,43 +409,61 @@ function App() {
 
   // ========== 配置 ==========
   const [configs, setConfigs] = useState<Record<string, string>>(DEFAULT_CONFIGS);
-  const [openConfig, setOpenConfig] = useState(false);
-  const [tempConfigs, setTempConfigs] = useState<Record<string, string>>(DEFAULT_CONFIGS);
 
   const fetchConfigs = async () => {
     try {
       const configsData = await api.getConfigs();
       setConfigs({ ...DEFAULT_CONFIGS, ...configsData });
-      setTempConfigs({ ...DEFAULT_CONFIGS, ...configsData });
     } catch {
       // 使用默认配置
     }
   };
 
-  const handleOpenConfig = () => {
-    setTempConfigs({ ...configs });
-    setOpenConfig(true);
-  };
-
-  const handleCloseConfig = () => setOpenConfig(false);
-
-  const handleConfigInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTempConfigs({ ...tempConfigs, [e.target.name]: e.target.value });
-  };
-
-  const handleSaveConfig = async () => {
+  // ========== 自动分组：按 URL 域名归入同名分组 ==========
+  const handleAutoGroup = useCallback(async (): Promise<string> => {
     try {
-      for (const [key, value] of Object.entries(tempConfigs)) {
-        if (configs[key] !== value) {
-          await api.setConfig(key, value);
+      // 1. 汇总每个域名下的站点，同名分组直接复用，否则标记后续新建
+      const domainToSites = new Map<string, number[]>();
+      for (const g of groups) {
+        for (const s of g.sites ?? []) {
+          if (!s.url) continue;
+          const domain = extractDomain(s.url)?.replace(/^www\./, '').toLowerCase();
+          if (!domain) continue;
+          const list = domainToSites.get(domain);
+          if (list) list.push(s.id as number);
+          else domainToSites.set(domain, [s.id as number]);
         }
       }
-      setConfigs({ ...tempConfigs });
-      handleCloseConfig();
+
+      const groupNameToId = new Map(groups.map((g) => [g.name.toLowerCase(), g.id]));
+      let created = 0;
+      let moved = 0;
+
+      // 2. 逐个域名整理：优先复用同名分组，没有则创建新分组
+      for (const [domain, siteIds] of domainToSites) {
+        let targetGroupId = groupNameToId.get(domain) ?? null;
+        if (targetGroupId == null) {
+          const newGroup = await api.createGroup({
+            name: domain,
+            order_num: groups.length + created,
+            is_public: 1,
+          });
+          if (!newGroup.id) throw new Error('创建分组返回缺少 id');
+          targetGroupId = newGroup.id;
+          created++;
+        }
+        for (const siteId of siteIds) {
+          await api.moveSiteToGroup(siteId, targetGroupId);
+          moved++;
+        }
+      }
+
+      await fetchData();
+      return `已按域名自动整理 ${moved} 个站点，新建 ${created} 个分组`;
     } catch (error) {
-      handleError('保存配置失败: ' + (error as Error).message);
+      throw new Error((error as Error).message || '自动分组失败');
     }
-  };
+  }, [groups, fetchData]);
 
   // ========== 新增分组/站点对话框 ==========
   const [openAddGroup, setOpenAddGroup] = useState(false);
@@ -658,12 +687,37 @@ function App() {
     };
   }, [configs]);
 
+  // 把开关型配置同步到 <html> 的 data-* 属性：关闭时删除属性 → CSS 选择器不命中，零开销
+  useEffect(() => {
+    const html = document.documentElement;
+    const syncAttr = (name: string, value: string | undefined) => {
+      if (value === 'true') html.setAttribute(`data-${name}`, 'true');
+      else html.removeAttribute(`data-${name}`);
+    };
+    syncAttr('card-animation', configs['site.cardAnimation']);
+    syncAttr('smooth-scroll', configs['site.smoothScroll']);
+    syncAttr('reduce-motion', configs['site.reduceMotion']);
+    syncAttr('compact-mode', configs['site.compactMode']);
+  }, [configs]);
+
+  // 音乐自动播放：开启后页面加载即尝试播放全局背景音乐（受浏览器自动播放策略限制）
+  const musicAutoPlayEnabled = configs['site.musicAutoPlay'] === 'true';
+  const configuredMusicUrl = configs['site.musicUrl'];
+  useEffect(() => {
+    if (musicAutoPlayEnabled && configuredMusicUrl) {
+      handlePlayMusic(configuredMusicUrl);
+    }
+  }, [musicAutoPlayEnabled, configuredMusicUrl, handlePlayMusic]);
+
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+    // 同步浏览器地址栏 theme-color（移动端标签栏/地址栏配色与页面背景一致，消除默认蓝色残留）
+    const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.content = darkMode ? '#020617' : '#F8FAFC';
   }, [darkMode]);
 
   // ========== 内置毛玻璃拟态（site.glassEffect，默认开启） ==========
@@ -821,6 +875,8 @@ function App() {
             : undefined
         }
         backgroundOpacity={configs['site.backgroundOpacity']}
+        backgroundBlur={configs['site.backgroundBlur'] === 'true'} // 背景虚化（个性化设置 → 动态效果）
+        particles={configs['site.particlesEnabled'] === 'true'} // 粒子背景（同开关；reduce-motion 时组件内自动降为单帧）
         sidebar={
           <Sidebar
             groups={groups}
@@ -830,7 +886,7 @@ function App() {
             configs={configs}
             onGroupClick={handleSidebarGroupClick}
             onAddGroup={handleOpenAddGroup}
-            onOpenSettings={handleOpenConfig}
+            onOpenSettings={() => setOpenEnhancedSettings(true)}
             onLogout={handleLogout}
             onSearchResultClick={handleSearchResultClick}
             onShowAll={handleShowAllGroups}
@@ -842,7 +898,6 @@ function App() {
             darkMode={darkMode}
             isAuthenticated={isAuthenticated}
             onToggleTheme={toggleTheme}
-            onOpenSettings={handleOpenConfig}
             onOpenExport={() => handleExportData(groups, configs)}
             onOpenImport={handleOpenImport}
             onOpenLinkChecker={() => setOpenLinkChecker(true)}
@@ -1105,59 +1160,6 @@ function App() {
             </DialogActions>
           </Dialog>
 
-          {/* 网站设置对话框 */}
-          <Dialog open={openConfig} onClose={handleCloseConfig} maxWidth='md' fullWidth
-            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
-          >
-            <DialogTitle>
-              网站设置
-              <IconButton aria-label='close' onClick={handleCloseConfig} sx={{ position: 'absolute', right: 8, top: 8 }}>
-                <CloseIcon />
-              </IconButton>
-            </DialogTitle>
-            <DialogContent>
-              <DialogContentText sx={{ mb: 2 }}>自定义导航站的名称、样式和功能</DialogContentText>
-              <Stack spacing={2}>
-                <TextField autoFocus margin='dense' name='site.title' label='网站标题'
-                  type='text' fullWidth variant='outlined' value={tempConfigs['site.title'] || ''}
-                  onChange={handleConfigInputChange} />
-                <TextField margin='dense' name='site.name' label='网站名称'
-                  type='text' fullWidth variant='outlined' value={tempConfigs['site.name'] || ''}
-                  onChange={handleConfigInputChange} />
-                <TextField margin='dense' name='site.customCss' label='自定义CSS'
-                  type='text' fullWidth multiline rows={4} variant='outlined'
-                  value={tempConfigs['site.customCss'] || ''} onChange={handleConfigInputChange}
-                  helperText='毛玻璃拟态已内置并默认开启（个性化设置 → 动态效果），此处仅用于额外覆盖样式' />
-                <TextField margin='dense' name='site.iconApi' label='图标API地址'
-                  type='text' fullWidth variant='outlined' value={tempConfigs['site.iconApi'] || ''}
-                  onChange={handleConfigInputChange}
-                  helperText='使用 {domain} 作为域名占位符' />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={tempConfigs['site.searchBoxEnabled'] === 'true'}
-                      onChange={(e) => setTempConfigs({ ...tempConfigs, 'site.searchBoxEnabled': e.target.checked ? 'true' : 'false' })}
-                    />
-                  }
-                  label='启用搜索框'
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={tempConfigs['site.searchBoxGuestEnabled'] === 'true'}
-                      onChange={(e) => setTempConfigs({ ...tempConfigs, 'site.searchBoxGuestEnabled': e.target.checked ? 'true' : 'false' })}
-                    />
-                  }
-                  label='访客也可使用搜索框'
-                />
-              </Stack>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleCloseConfig} variant='outlined'>取消</Button>
-              <Button onClick={handleSaveConfig} variant='contained' color='primary'>保存</Button>
-            </DialogActions>
-          </Dialog>
-
           {/* 导入数据对话框 */}
           <Dialog open={openImport} onClose={handleCloseImport} maxWidth='sm' fullWidth
             slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
@@ -1235,6 +1237,7 @@ function App() {
               setConfigs((prev) => ({ ...prev, [key]: value }));
             }}
             onMusicPlay={handlePlayMusic}
+            onAutoGroup={handleAutoGroup} // 常规 → 自动分组：按域名归组
             devOptions={devOptions}
             onDevOptionsChange={handleDevOptionChange}
           />

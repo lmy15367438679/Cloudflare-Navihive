@@ -41,6 +41,7 @@ const Sidebar = memo(function Sidebar({
   activeGroupId,
   isAuthenticated,
   viewMode,
+  configs,
   variant = 'hover',
   onGroupClick,
   onAddGroup,
@@ -73,6 +74,12 @@ const Sidebar = memo(function Sidebar({
     () => (groups as Array<Group & { sites?: Site[] }>).flatMap((g) => g.sites || []),
     [groups]
   );
+
+  // 搜索框显隐由个性化设置控制（site.searchBoxEnabled）：总开关关闭则管理员也看不到；
+  // 访客（readonly）视图还需 site.searchBoxGuestEnabled 允许
+  const showSearchBox =
+    configs['site.searchBoxEnabled'] !== 'false' &&
+    (isAuthenticated || configs['site.searchBoxGuestEnabled'] !== 'false');
 
   // 响应 App 层派发的 ⌘K/Ctrl+K：桌面 hover 模式侧栏初始收起，先展开再聚焦搜索框
   useEffect(() => {
@@ -125,26 +132,28 @@ const Sidebar = memo(function Sidebar({
               }),
         }}
       >
-        {/* 搜索框 */}
-        <Box sx={{ p: 1.5 }}>
-          <SearchBox
-            groups={groups.map((g) => ({
-              id: g.id,
-              name: g.name,
-              order_num: g.order_num,
-              is_public: g.is_public,
-              created_at: g.created_at,
-              updated_at: g.updated_at,
-            }))}
-            sites={sites}
-            listenGlobalShortcut={!isStatic}
-            onInternalResultClick={(result) => {
-              onSearchResultClick(result);
-              setExpanded(false);
-              onSidebarCollapse?.();
-            }}
-          />
-        </Box>
+        {/* 搜索框（site.searchBoxEnabled / site.searchBoxGuestEnabled） */}
+        {showSearchBox && (
+          <Box sx={{ p: 1.5 }}>
+            <SearchBox
+              groups={groups.map((g) => ({
+                id: g.id,
+                name: g.name,
+                order_num: g.order_num,
+                is_public: g.is_public,
+                created_at: g.created_at,
+                updated_at: g.updated_at,
+              }))}
+              sites={sites}
+              listenGlobalShortcut={!isStatic}
+              onInternalResultClick={(result) => {
+                onSearchResultClick(result);
+                setExpanded(false);
+                onSidebarCollapse?.();
+              }}
+            />
+          </Box>
+        )}
 
         <Divider sx={{ borderColor: 'var(--color-border)' }} />
 
@@ -281,7 +290,7 @@ const Sidebar = memo(function Sidebar({
                 <SettingsIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText
-                primary="网站设置"
+                primary="个性化设置"
                 primaryTypographyProps={{
                   fontFamily: 'var(--font-heading)',
                   fontSize: '14px',

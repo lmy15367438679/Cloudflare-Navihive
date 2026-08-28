@@ -1,4 +1,4 @@
-import { useState, memo, useCallback } from 'react';
+import { useState, useEffect, memo, useCallback } from 'react';
 import { Site } from '../API/http';
 import { GroupWithSites } from '../types';
 import SiteSettingsModal from './SiteSettingsModal';
@@ -23,6 +23,10 @@ interface SiteCardProps {
   isFavorite?: boolean;
   /** 切换收藏状态 */
   onToggleFavorite?: (siteId: number) => void;
+  /** 图标懒加载开关（site.lazyLoadImages，默认关闭即 eager） */
+  lazyLoadImages?: boolean;
+  /** 图标本地缓存开关（site.imageCache，叠加 /api/icon 边缘缓存） */
+  imageCache?: boolean;
 }
 
 const SiteCard = memo(function SiteCard({
@@ -37,11 +41,60 @@ const SiteCard = memo(function SiteCard({
   onMoveGroup,
   isFavorite = false,
   onToggleFavorite,
+  lazyLoadImages = false,
+  imageCache = false,
 }: SiteCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [iconError, setIconError] = useState(!site.icon);
   const [imageLoaded, setImageLoaded] = useState(false);
+  // 图标资源地址：默认直连 /api/icon 代理（内含 Cloudflare 边缘缓存）；
+  // 开启 site.imageCache 后优先用 Cache API 命中本地副本，二次渲染时零网络往返
+  const iconHref = site.icon ? getIconProxyUrl(site.icon) : '';
+  const [iconSrc, setIconSrc] = useState(iconHref);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    if (
+      !site.icon ||
+      !imageCache ||
+      typeof window === 'undefined' ||
+      !('caches' in window) ||
+      !window.isSecureContext
+    ) {
+      setIconSrc(iconHref);
+      return;
+    }
+
+    (async () => {
+      try {
+        const cache = await caches.open('navihive-icons');
+        const req = new Request(iconHref, { method: 'GET' });
+        let res = await cache.match(req);
+        if (!res) {
+          res = await fetch(req);
+          if (res && res.ok) {
+            await cache.put(req, res.clone());
+          }
+        }
+        if (!res || !res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setIconSrc(objectUrl);
+      } catch {
+        // data:/blob: URL 或 Cache API 不可用等异常：回落到直连代理
+        if (!cancelled) setIconSrc(iconHref);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [iconHref, imageCache, site.icon]);
   const { position, close, open } = useContextMenu();
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -140,11 +193,11 @@ const SiteCard = memo(function SiteCard({
           )}
           <Box
             component="img"
-            src={getIconProxyUrl(site.icon)}
+            src={iconSrc}
             alt=""
-            loading="lazy"
+            loading={lazyLoadImages ? 'lazy' : 'eager'}
             decoding="async"
-            fetchPriority="low"
+            fetchPriority={lazyLoadImages ? 'low' : 'auto'}
             sx={{
               width: 28,
               height: 28,

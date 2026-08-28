@@ -10,7 +10,6 @@ interface TopBarProps {
   darkMode: boolean;
   isAuthenticated: boolean;
   onToggleTheme: () => void;
-  onOpenSettings: () => void;
   onOpenExport: () => void;
   onOpenImport: () => void;
   onOpenLinkChecker: () => void;
@@ -30,7 +29,6 @@ export default function TopBar({
   darkMode,
   isAuthenticated,
   onToggleTheme,
-  onOpenSettings,
   onOpenExport,
   onOpenImport,
   onOpenLinkChecker,
@@ -119,10 +117,6 @@ export default function TopBar({
               onClose={() => setMenuAnchor(null)}
               slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)' } } }}
             >
-              <MenuItem onClick={() => { setMenuAnchor(null); onOpenSettings(); }}>
-                <ListItemText>网站设置</ListItemText>
-              </MenuItem>
-              <Divider sx={{ borderColor: 'var(--color-border)' }} />
               <MenuItem onClick={() => { setMenuAnchor(null); onOpenLinkChecker(); }}>
                 <ListItemText>链接检测</ListItemText>
               </MenuItem>

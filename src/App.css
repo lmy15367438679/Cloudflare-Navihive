@@ -169,3 +169,52 @@
 .glass #github-link {
   display: none !important;
 }
+
+/* ===== 动态效果 / 性能优化开关的实际接线（html[data-*]） =====
+   这些选择器由 App.tsx 根据 configs（个性化设置）同步到 <html> 的 data-* 属性：
+   开关关闭时属性被移除 → 选择器不命中 → 零额外渲染开销。 */
+
+/* 卡片悬浮动画（site.cardAnimation）：仅交互瞬时创建合成层，结束自动释放 */
+html[data-card-animation='true'] .site-card {
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+html[data-card-animation='true'] .site-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 平滑滚动（site.smoothScroll） */
+html[data-smooth-scroll='true'] {
+  scroll-behavior: smooth;
+}
+
+/* 减少动画（site.reduceMotion）：与系统级 prefers-reduced-motion 行为对齐 */
+html[data-reduce-motion='true'] *,
+html[data-reduce-motion='true'] *::before,
+html[data-reduce-motion='true'] *::after {
+  animation: none !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+html[data-reduce-motion='true'] {
+  scroll-behavior: auto !important;
+}
+
+/* 紧凑模式（site.compactMode）：收缩卡片与网格间距，一屏展示更多 */
+html[data-compact-mode='true'] .group-sites-row {
+  margin: -0.5 !important;
+}
+html[data-compact-mode='true'] .group-site-item {
+  padding: 4px !important;
+}
+html[data-compact-mode='true'] .site-card {
+  padding: 8px 10px !important;
+  gap: 8px !important;
+  min-height: 44px !important;
+}
+html[data-compact-mode='true'] .site-card-icon,
+html[data-compact-mode='true'] .site-card-icon > * {
+  width: 22px !important;
+  height: 22px !important;
+}

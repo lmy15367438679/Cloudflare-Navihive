@@ -23,6 +23,8 @@ import {
   Paper,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import WallpaperIcon from '@mui/icons-material/Wallpaper';
 import AnimationIcon from '@mui/icons-material/Animation';
@@ -60,6 +62,8 @@ interface EnhancedSettingsProps {
   configs: Record<string, string>;
   onSaveConfig: (key: string, value: string) => Promise<void>;
   onMusicPlay?: (url: string) => void; // 通知全局播放器播放音乐
+  /** 按域名自动分组：返回结果描述字符串（由 App 端执行数据操作并刷新） */
+  onAutoGroup?: () => Promise<string>;
   /** 开发者选项（仅本机 localStorage，与 D1 全局配置无关） */
   devOptions?: DevOptions;
   onDevOptionsChange?: (key: keyof DevOptions, value: boolean) => void;
@@ -84,6 +88,7 @@ export default function EnhancedSettings({
   configs,
   onSaveConfig,
   onMusicPlay,
+  onAutoGroup,
   devOptions = { fps: false, log: false },
   onDevOptionsChange,
 }: EnhancedSettingsProps) {
@@ -144,6 +149,32 @@ export default function EnhancedSettings({
     setTempConfigs((prev) => ({ ...prev, [key]: value }));
   };
 
+  // 自动分组：由 App 端执行数据处理并返回结果文案
+  const [autoGrouping, setAutoGrouping] = useState(false);
+  const [autoGroupMsg, setAutoGroupMsg] = useState('');
+  const [autoGroupError, setAutoGroupError] = useState('');
+
+  const handleAutoGroupClick = async () => {
+    setAutoGroupMsg('');
+    setAutoGroupError('');
+    if (!onAutoGroup) return;
+    if (
+      !window.confirm(
+        '将按 URL 域名把所有站点自动归入同名分组（必要时自动创建分组）。\n原分组会保留，但其中站点会移出并按域名重新归档。是否继续？'
+      )
+    ) {
+      return;
+    }
+    setAutoGrouping(true);
+    try {
+      setAutoGroupMsg(await onAutoGroup());
+    } catch (err) {
+      setAutoGroupError((err as Error).message || '自动分组失败');
+    } finally {
+      setAutoGrouping(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -184,6 +215,7 @@ export default function EnhancedSettings({
         allowScrollButtonsMobile
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
+        <Tab icon={<SettingsIcon />} label='常规' />
         <Tab icon={<MusicNoteIcon />} label='背景音乐' />
         <Tab icon={<WallpaperIcon />} label='壁纸' />
         <Tab icon={<AnimationIcon />} label='动态效果' />
@@ -192,8 +224,123 @@ export default function EnhancedSettings({
       </Tabs>
 
       <DialogContent>
-        {/* 背景音乐设置 */}
+        {/* 常规设置（网站设置 + 个性化设置合并后的入口） */}
         <TabPanel value={tabValue} index={0}>
+          <Alert severity='info' sx={{ mb: 2 }}>
+            网站标题、名称、搜索框等基础配置，以及按域名自动整理收藏。
+          </Alert>
+
+          <TextField
+            fullWidth
+            size='small'
+            label='网站标题'
+            value={tempConfigs['site.title'] || ''}
+            onChange={(e) => handleConfigChange('site.title', e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            size='small'
+            label='网站名称'
+            value={tempConfigs['site.name'] || ''}
+            onChange={(e) => handleConfigChange('site.name', e.target.value)}
+            sx={{ mb: 2 }}
+          />
+
+          <Typography variant='subtitle2' gutterBottom>
+            图标获取API
+          </Typography>
+          <TextField
+            fullWidth
+            size='small'
+            label='图标API地址'
+            value={tempConfigs['site.iconApi'] || ''}
+            onChange={(e) => handleConfigChange('site.iconApi', e.target.value)}
+            placeholder='https://www.faviconextractor.com/favicon/{domain}?larger=true'
+            helperText='使用 {domain} 作为域名占位符；图标默认经 /api/icon 代理并由 Cloudflare 边缘缓存'
+            sx={{ mb: 2 }}
+          />
+
+          <TextField
+            fullWidth
+            size='small'
+            multiline
+            rows={3}
+            label='自定义CSS'
+            value={tempConfigs['site.customCss'] || ''}
+            onChange={(e) => handleConfigChange('site.customCss', e.target.value)}
+            helperText='毛玻璃拟态已内置并默认开启（动态效果 → 毛玻璃效果），此处仅用于额外覆盖样式'
+            sx={{ mb: 2 }}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={tempConfigs['site.searchBoxEnabled'] !== 'false'}
+                onChange={(e) => handleConfigChange('site.searchBoxEnabled', e.target.checked ? 'true' : 'false')}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant='body1'>启用搜索框</Typography>
+                <Typography variant='caption' color='text.secondary'>
+                  关闭后侧边栏不显示站点搜索框
+                </Typography>
+              </Box>
+            }
+            sx={{ mb: 1, display: 'flex' }}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={tempConfigs['site.searchBoxGuestEnabled'] !== 'false'}
+                onChange={(e) => handleConfigChange('site.searchBoxGuestEnabled', e.target.checked ? 'true' : 'false')}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant='body1'>访客也可使用搜索框</Typography>
+                <Typography variant='caption' color='text.secondary'>
+                  关闭后仅登录管理员可见搜索框
+                </Typography>
+              </Box>
+            }
+            sx={{ mb: 2, display: 'flex' }}
+          />
+
+          <Divider sx={{ my: 2 }} />
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Typography variant='subtitle2'>自动分组</Typography>
+            <Typography variant='caption' color='text.secondary'>
+              按每个收藏的 URL 域名自动归类到同名分组：没有对应分组的会自动创建，
+              原分组会保留，但其中的站点会被移出并按域名重新归档。
+            </Typography>
+            <Button
+              variant='outlined'
+              size='small'
+              startIcon={<AutoAwesomeIcon />}
+              onClick={handleAutoGroupClick}
+              disabled={autoGrouping}
+              sx={{ alignSelf: 'flex-start', borderColor: 'var(--color-border)', color: 'var(--text-primary)' }}
+            >
+              {autoGrouping ? '整理中...' : '按域名自动分组'}
+            </Button>
+            {autoGroupMsg && (
+              <Alert severity='success' sx={{ mt: 1 }}>
+                {autoGroupMsg}
+              </Alert>
+            )}
+            {autoGroupError && (
+              <Alert severity='error' sx={{ mt: 1 }}>
+                {autoGroupError}
+              </Alert>
+            )}
+          </Box>
+        </TabPanel>
+
+        {/* 背景音乐设置 */}
+        <TabPanel value={tabValue} index={1}>
           <Alert severity='info' sx={{ mb: 2 }}>
             添加背景音乐，让导航站更有氛围。建议使用轻音乐或白噪音。
           </Alert>
@@ -248,7 +395,7 @@ export default function EnhancedSettings({
         </TabPanel>
 
         {/* 壁纸设置 */}
-        <TabPanel value={tabValue} index={1}>
+        <TabPanel value={tabValue} index={2}>
           <Alert severity='info' sx={{ mb: 2 }}>
             选择或自定义背景壁纸，让导航站更具个性。
           </Alert>
@@ -338,7 +485,7 @@ export default function EnhancedSettings({
         </TabPanel>
 
         {/* 动态效果设置 */}
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={3}>
           <Alert severity='info' sx={{ mb: 2 }}>
             添加动态效果提升视觉体验。注意：过多动画可能影响性能。
           </Alert>
@@ -418,7 +565,7 @@ export default function EnhancedSettings({
         </TabPanel>
 
         {/* 性能优化设置 */}
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={4}>
           <Alert severity='info' sx={{ mb: 2 }}>
             优化导航站的加载速度和运行性能，减少资源消耗。
           </Alert>
@@ -495,24 +642,10 @@ export default function EnhancedSettings({
             sx={{ mb: 2, display: 'flex' }}
           />
 
-          <Divider sx={{ my: 2 }} />
-
-          <Typography variant='subtitle2' gutterBottom>
-            图标获取API
-          </Typography>
-          <TextField
-            fullWidth
-            size='small'
-            label='图标API地址'
-            value={tempConfigs['site.iconApi'] || ''}
-            onChange={(e) => handleConfigChange('site.iconApi', e.target.value)}
-            placeholder='https://www.faviconextractor.com/favicon/{domain}?larger=true'
-            helperText='使用 {domain} 作为域名占位符'
-          />
         </TabPanel>
 
         {/* 开发者选项（仅本机 localStorage，与全局 D1 配置无关） */}
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={5}>
           <Alert severity='warning' sx={{ mb: 2 }}>
             开发者选项仅作用于当前浏览器（localStorage），用于诊断问题，不会保存到网站全局配置，也不影响其他访客。
           </Alert>

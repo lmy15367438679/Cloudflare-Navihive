@@ -62,9 +62,9 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
     <h1 style="font-size: 24px; margin: 0 0 8px;">📥 一键收藏书签脚本</h1>
     <p style="color: #666; margin-bottom: 30px;">将下方按钮拖拽到浏览器书签栏即可安装</p>
     <a href="${bookmarkletCode}"
-       style="display: inline-block; padding: 14px 28px; background: #1976d2; color: white;
+       style="display: inline-block; padding: 14px 28px; background: #22C55E; color: white;
               text-decoration: none; border-radius: 8px; font-size: 18px; cursor: grab;
-              box-shadow: 0 2px 8px rgba(25,118,210,0.3);">
+              box-shadow: 0 2px 8px rgba(34,197,94,0.3);">
       ⭐ 收藏到导航站
     </a>
     <p style="color: #999; margin-top: 30px; font-size: 14px;">

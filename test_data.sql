@@ -33,4 +33,13 @@ INSERT INTO configs (key, value) VALUES
 ('CUSTOM_CSS', '/* 内置毛玻璃拟态已默认开启（个性化设置 → 动态效果 → 毛玻璃效果），
    如需额外覆盖外观在此追加样式 */'),
 -- 毛玻璃拟态默认开启（与前端 DEFAULT_CONFIGS 保持一致）
-('site.glassEffect', 'true');
+('site.glassEffect', 'true'),
+-- 背景特效 / 动效 / 性能优化开关（与前端 DEFAULT_CONFIGS 保持一致）
+('site.particlesEnabled', 'false'),
+('site.backgroundBlur', 'false'),
+('site.cardAnimation', 'false'),
+('site.smoothScroll', 'false'),
+('site.reduceMotion', 'false'),
+('site.compactMode', 'false'),
+('site.lazyLoadImages', 'false'),
+('site.imageCache', 'false');

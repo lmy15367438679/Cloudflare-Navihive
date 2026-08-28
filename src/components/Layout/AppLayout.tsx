@@ -1,6 +1,7 @@
 import { useState, useCallback, cloneElement, isValidElement } from 'react';
 import { Box, Drawer } from '@mui/material';
 import type { ReactNode } from 'react';
+import ParticlesBackground from '../Effects/ParticlesBackground';
 
 interface AppLayoutProps {
   sidebar: ReactNode;
@@ -8,6 +9,10 @@ interface AppLayoutProps {
   children: ReactNode;
   backgroundImage?: string;
   backgroundOpacity?: string;
+  /** 背景图虚化（site.backgroundBlur） */
+  backgroundBlur?: boolean;
+  /** 粒子背景（site.particlesEnabled） */
+  particles?: boolean;
 }
 
 export default function AppLayout({
@@ -16,6 +21,8 @@ export default function AppLayout({
   children,
   backgroundImage,
   backgroundOpacity = '0.15',
+  backgroundBlur = false,
+  particles = false,
 }: AppLayoutProps) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
@@ -59,6 +66,13 @@ export default function AppLayout({
             // Chrome 不会像 Safari 那样自动把 fixed 元素提升为合成层：
             // 不加 will-change 时，滚动内容每帧都会在它上方重绘合成 → 掉帧。
             willChange: 'transform',
+            ...(backgroundBlur
+              ? {
+                  // 背景虚化（site.backgroundBlur）：blur 会扩大渲染范围到画布边缘，轻微
+                  // scale(1.02) 防止露出底色；背景本身是静态低频重绘，仅开启时才有成本
+                  filter: 'blur(10px) scale(1.02)',
+                }
+              : {}),
             '&::before': {
               content: '""',
               position: 'absolute',
@@ -72,6 +86,10 @@ export default function AppLayout({
           }}
         />
       )}
+
+      {/* 粒子背景装饰层（site.particlesEnabled）：canvas 全屏 fixed，z-index 1
+          位于背景壁纸之上、内容之下；pointer-events: none 不挡任何交互 */}
+      {particles && <ParticlesBackground />}
 
       {topBarWithMobile}
 

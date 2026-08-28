@@ -21,7 +21,9 @@ export function createAppTheme(darkMode: boolean) {
             divider: tokens.color.border,
           }
         : {
-            primary: { main: '#2563EB' },
+            // 与深色模式保持同一主色（品牌 accent 绿），避免主题切换时 UI 主色
+            // 从绿色变成蓝色而造成两套配色“打架”的观感
+            primary: { main: tokens.color.accent },
             secondary: { main: tokens.light.muted },
             error: { main: tokens.color.destructive },
             background: {

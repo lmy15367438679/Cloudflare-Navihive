@@ -222,6 +222,7 @@ const GroupCard = memo(function GroupCard({
           >
             <Box sx={{ width: '100%' }}>
               <Box
+                className='group-sites-row'
                 sx={{
                   display: 'flex',
                   flexWrap: 'wrap',
@@ -231,6 +232,7 @@ const GroupCard = memo(function GroupCard({
                 {sitesToRender.map((site, idx) => (
                   <Box
                     key={site.id || idx}
+                    className='group-site-item'
                     sx={{
                       width: {
                         xs: '50%',
@@ -255,6 +257,8 @@ const GroupCard = memo(function GroupCard({
                       onMoveGroup={onMoveGroup}
                       isFavorite={favoriteIds?.has(site.id as number) ?? false}
                       onToggleFavorite={onToggleFavorite}
+                      lazyLoadImages={configs?.['site.lazyLoadImages'] === 'true'} // 懒加载开关（性能优化）
+                      imageCache={configs?.['site.imageCache'] === 'true'} // 图标本地缓存开关（性能优化）
                     />
                   </Box>
                 ))}
@@ -268,6 +272,7 @@ const GroupCard = memo(function GroupCard({
     // 普通模式下的渲染
     return (
       <Box
+        className='group-sites-row'
         sx={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -277,6 +282,7 @@ const GroupCard = memo(function GroupCard({
         {orderedSites.map((site) => (
           <Box
             key={site.id}
+            className='group-site-item'
             sx={{
               width: {
                 xs: '100%',
@@ -300,6 +306,8 @@ const GroupCard = memo(function GroupCard({
               onMoveGroup={onMoveGroup}
               isFavorite={favoriteIds?.has(site.id as number) ?? false}
               onToggleFavorite={onToggleFavorite}
+              lazyLoadImages={configs?.['site.lazyLoadImages'] === 'true'} // 懒加载开关（性能优化）
+              imageCache={configs?.['site.imageCache'] === 'true'} // 图标本地缓存开关（性能优化）
             />
           </Box>
         ))}

@@ -102,6 +102,15 @@ const mockConfigs: Record<string, string> = {
   'site.name': '个人导航',
   'site.customCss': '',
   'site.glassEffect': 'true',
+  // 与前端 DEFAULT_CONFIGS 保持一致
+  'site.particlesEnabled': 'false',
+  'site.backgroundBlur': 'false',
+  'site.cardAnimation': 'false',
+  'site.smoothScroll': 'false',
+  'site.reduceMotion': 'false',
+  'site.compactMode': 'false',
+  'site.lazyLoadImages': 'false',
+  'site.imageCache': 'false',
 };
 
 // 模拟API实现
