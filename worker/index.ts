@@ -552,7 +552,10 @@ export default {
                         return createResponse("禁止访问的地址", request, { status: 403 });
                     }
 
-                    const cache = caches.default;
+                    // 使用 CF Workers 运行时提供的默认缓存（默认缓存即边缘缓存）
+                    // 注：tsconfig 的 WebWorker lib 与 workers-types 合并后 CacheStorage 无 default 类型，
+                    // 运行时实际可用，故显式断言
+                    const cache = (caches as unknown as { default: Cache }).default;
                     const cacheKey = new Request(
                         `https://${url.host}/api/icon?url=${encodeURIComponent(target)}`,
                         { method: "GET" }
@@ -584,7 +587,7 @@ export default {
                             return createResponse("图标获取失败", request, { status: 404 });
                         }
 
-                        const contentType = (upstream.headers.get("Content-Type") || "").split(";")[0].trim();
+                        const contentType = ((upstream.headers.get("Content-Type") || "").split(";")[0] ?? "").trim();
                         if (!contentType.startsWith("image/")) {
                             return createResponse("非图片内容", request, { status: 415 });
                         }
@@ -604,8 +607,8 @@ export default {
                             },
                         });
 
-                        // 3. 写入 CF 边缘缓存（7 天 TTL）
-                        await cache.put(cacheKey, response.clone(), { ttl: 60 * 60 * 24 * 7 });
+                        // 3. 写入 CF 边缘缓存（TTL 由上面 Cache-Control 的 s-maxage=604800 控制，即 7 天）
+                        await cache.put(cacheKey, response.clone());
 
                         return response;
                     } catch {
