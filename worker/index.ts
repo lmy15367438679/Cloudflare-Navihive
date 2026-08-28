@@ -316,6 +316,19 @@ function createJsonResponse(
 }
 
 /**
+ * 只读接口的缓存头（性能优化）：
+ * - 未认证的访客请求：浏览器每次回源验证（max-age=0），但允许 Cloudflare
+ *   边缘缓存 30s（s-maxage=30），同一波访客共享一次 D1 查询，显著降低
+ *   数据库读压力与首屏等待。访客数据只含公开分组/站点，无隐私风险。
+ * - 已认证请求：不走缓存（管理员改动后需立即可见，且响应含私有配置）。
+ */
+function readCacheHeaders(isAuthenticated: boolean): Record<string, string> {
+    return isAuthenticated
+        ? {}
+        : { "Cache-Control": "public, max-age=0, s-maxage=30" };
+}
+
+/**
  * 创建带 CORS 头的普通响应
  */
 function createResponse(
@@ -714,10 +727,10 @@ export default {
                                 ...group,
                                 sites: group.sites.filter(site => site.is_public !== 0)
                             }));
-                        return createJsonResponse(filteredGroups, request);
+                        return createJsonResponse(filteredGroups, request, { headers: readCacheHeaders(isAuthenticated) });
                     }
 
-                    return createJsonResponse(groupsWithSites, request);
+                    return createJsonResponse(groupsWithSites, request, { headers: readCacheHeaders(isAuthenticated) });
                 }
                 // GET /api/groups 获取所有分组
                 else if (path === "groups" && method === "GET") {
@@ -733,7 +746,7 @@ export default {
                     query += ' ORDER BY order_num ASC';
 
                     const result = await env.DB.prepare(query).bind(...params).all();
-                    return createJsonResponse(result.results || [], request);
+                    return createJsonResponse(result.results || [], request, { headers: readCacheHeaders(isAuthenticated) });
                 } else if (path.startsWith("groups/") && method === "GET") {
                     const idStr = path.split("/")[1];
                     if (!idStr) {
@@ -918,7 +931,7 @@ export default {
                     query += ' ORDER BY s.group_id ASC, s.order_num ASC';
 
                     const result = await env.DB.prepare(query).bind(...params).all();
-                    return createJsonResponse(result.results || [], request);
+                    return createJsonResponse(result.results || [], request, { headers: readCacheHeaders(isAuthenticated) });
                 }
 
                 // 4. 获取单个站点 (GET sites/:id)
@@ -1123,11 +1136,11 @@ export default {
                 // 配置相关API
                 else if (path === "configs" && method === "GET") {
                     const configs = await api.getConfigs();
-                    return createJsonResponse(configs, request);
+                    return createJsonResponse(configs, request, { headers: readCacheHeaders(isAuthenticated) });
                 } else if (path.startsWith("configs/") && method === "GET") {
                     const key = path.substring("configs/".length);
                     const value = await api.getConfig(key);
-                    return createJsonResponse({ key, value }, request);
+                    return createJsonResponse({ key, value }, request, { headers: readCacheHeaders(isAuthenticated) });
                 } else if (path.startsWith("configs/") && method === "PUT") {
                     const key = path.substring("configs/".length);
                     const data = (await validateRequestBody(request)) as ConfigInput;
