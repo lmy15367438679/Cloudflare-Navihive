@@ -319,7 +319,6 @@ const GroupCard = memo(function GroupCard({
         p: { xs: 2, sm: 3 },
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
-        contain: 'layout',
       }}
     >
       <Box
