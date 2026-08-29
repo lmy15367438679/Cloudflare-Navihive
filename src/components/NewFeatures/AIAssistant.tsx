@@ -22,15 +22,17 @@ import {
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import SendIcon from '@mui/icons-material/Send';
 import SettingsIcon from '@mui/icons-material/Settings';
+import StopIcon from '@mui/icons-material/Stop';
 import { AISettings, AISettingsInput, AIMessage, AIChatResponse } from '../../API/ai';
 
 // 最小接口：NavigationClient（真实 Worker）与 MockNavigationClient（本地模拟）均满足
 interface AIAPI {
   getAISettings(): Promise<AISettings>;
   saveAISettings(data: AISettingsInput): Promise<{ success: boolean; message?: string }>;
-  aiChat(messages: AIMessage[], model?: string): Promise<AIChatResponse>;
+  aiChat(messages: AIMessage[], model?: string, signal?: AbortSignal): Promise<AIChatResponse>;
 }
 
 interface AIAssistantProps {
@@ -48,6 +50,9 @@ const SUGGESTIONS = [
   '怎么把网站加入这个导航站？',
   '想找编程学习资源，推荐去哪里',
 ];
+
+// 对话历史本地持久化键（localStorage），刷新/重开浏览器后仍保留，最多 40 条
+const STORAGE_KEY = 'navihive.ai.history.v1';
 
 export default function AIAssistant({
   open,
@@ -73,7 +78,7 @@ export default function AIAssistant({
     models: [],
     systemPrompt: '',
     toolsEnabled: true,
-    tokenBudget: 2600,
+    tokenBudget: 0,
     extSkillsEnabled: true,
     hasKey: false,
     maskedKey: '',
@@ -81,8 +86,8 @@ export default function AIAssistant({
   const [apiKey, setApiKey] = useState('');
   // 设置面板中「添加模型」的输入框
   const [modelInput, setModelInput] = useState('');
-  // 设置面板中「Token 预算」的输入框（字符串态，保存时再解析/收敛）
-  const [budgetInput, setBudgetInput] = useState('2600');
+  // 手动暂停：持有当前请求的中止控制器
+  const abortRef = useRef<AbortController | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -107,15 +112,16 @@ export default function AIAssistant({
           .getAISettings()
           .then((s) => {
             setSettings(s);
-            setBudgetInput(String(s.tokenBudget));
             setView(s.enabled ? 'chat' : 'settings');
           })
           .catch(() => setSaveMsg({ type: 'error', text: '读取 AI 设置失败，请稍后重试' }))
           .finally(() => setSettingsLoading(false));
       }
     } else {
-      // 关闭时清空错误，保持当前视图状态以便下次打开复用
+      // 关闭时清空错误；若有请求仍在进行则中止，避免后台继续消耗上游配额
       setChatError(null);
+      abortRef.current?.abort();
+      abortRef.current = null;
     }
   }, [open, isAuthenticated, api]);
 
@@ -123,6 +129,38 @@ export default function AIAssistant({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, loading]);
+
+  // 挂载时从 localStorage 恢复上次对话历史（最多 40 条）
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter(
+            (m): m is AIMessage =>
+              !!m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
+          );
+          if (valid.length > 0) setMessages(valid.slice(-40));
+        }
+      }
+    } catch {
+      // 忽略损坏的本地历史，不阻塞功能
+    }
+  }, []);
+
+  // 对话变化时持久化到 localStorage（最多 40 条）
+  useEffect(() => {
+    try {
+      if (messages.length > 0) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-40)));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      // 存储不可用（如隐私模式）时静默失败
+    }
+  }, [messages]);
 
   const handleSend = async (text?: string) => {
     const content = (text ?? input).trim();
@@ -133,13 +171,37 @@ export default function AIAssistant({
     const history = [...messages, userMessage];
     setMessages(history);
     setLoading(true);
-    const res = await api.aiChat(history, activeModel || undefined);
-    if (res.success && res.reply) {
-      const reply = res.reply;
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-    } else {
-      setChatError(res.message || 'AI 请求失败，请稍后重试');
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const res = await api.aiChat(history, activeModel || undefined, controller.signal);
+      if (res.success && res.reply) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: res.reply as string }]);
+      } else {
+        setChatError(
+          controller.signal.aborted ? '已停止生成' : res.message || 'AI 请求失败，请稍后重试'
+        );
+      }
+    } catch {
+      setChatError('已停止生成');
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      setLoading(false);
     }
+  };
+
+  // 手动暂停：中止与 Worker 的请求（Worker 会联动取消上游 AI 调用，避免无效等待）
+  const stopGenerating = () => {
+    abortRef.current?.abort();
+    setChatError(null);
+  };
+
+  // 清空对话历史（同时取消进行中的请求并清掉本地持久化）
+  const handleClearHistory = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setMessages([]);
+    setChatError(null);
     setLoading(false);
   };
 
@@ -189,7 +251,8 @@ export default function AIAssistant({
       systemPrompt: settings.systemPrompt,
       toolsEnabled: settings.toolsEnabled,
       extSkillsEnabled: settings.extSkillsEnabled,
-      tokenBudget: Math.min(8000, Math.max(1000, Math.round(Number(budgetInput) || 2600))),
+      // 已移除 Token 预算限制面板：0 = 服务端不限制历史长度（仍只保留最近 20 条）
+      tokenBudget: 0,
       // 留空 = 保持服务端已保存的密钥不变
       apiKey: apiKey || undefined,
     });
@@ -281,6 +344,18 @@ export default function AIAssistant({
               </IconButton>
             </Tooltip>
           )}
+          {view === 'chat' && messages.length > 0 && (
+            <Tooltip title='清空聊天记录'>
+              <IconButton
+                size='small'
+                onClick={handleClearHistory}
+                aria-label='清空聊天记录'
+                sx={{ color: 'var(--text-secondary)' }}
+              >
+                <DeleteSweepIcon fontSize='small' />
+              </IconButton>
+            </Tooltip>
+          )}
           <IconButton
             size='small'
             onClick={onClose}
@@ -363,17 +438,6 @@ export default function AIAssistant({
                   recommend_next_actions（任务规划建议）、teach_concept（概念教学）。
                   与基础技能一致：上游不支持或接口异常时自动降级，不影响基础问答与 token 预算。
                 </Typography>
-
-                <TextField
-                  label='上下文 Token 预算'
-                  type='number'
-                  inputProps={{ min: 1000, max: 8000, step: 100 }}
-                  fullWidth
-                  size='small'
-                  value={budgetInput}
-                  onChange={(e) => setBudgetInput(e.target.value)}
-                  helperText='超出预算的历史消息将被截断以节省 token（1000–8000，默认 2600）'
-                />
 
                 <TextField
                   label='API 接口地址（Base URL）'
@@ -572,7 +636,7 @@ export default function AIAssistant({
                 <Box
                   sx={{
                     display: 'flex',
-                    gap: 1,
+                    gap: 1.5,
                     alignItems: 'center',
                     color: 'var(--text-secondary)',
                     py: 0.5,
@@ -580,6 +644,24 @@ export default function AIAssistant({
                 >
                   <CircularProgress size={16} />
                   <Typography variant='caption'>正在思考…</Typography>
+                  <Button
+                    size='small'
+                    variant='text'
+                    startIcon={<StopIcon fontSize='small' />}
+                    onClick={stopGenerating}
+                    disabled={!loading}
+                    sx={{
+                      minWidth: 0,
+                      p: '2px 6px',
+                      ml: 0.5,
+                      color: 'var(--color-accent)',
+                      fontSize: '12px',
+                      textTransform: 'none',
+                    }}
+                    aria-label='停止生成'
+                  >
+                    停止
+                  </Button>
                 </Box>
               )}
               <div ref={bottomRef} />

@@ -19,7 +19,7 @@ export interface AISettings {
   systemPrompt: string;
   /** 是否启用 AI 技能（函数调用：站点检索/分组查询/站内推荐）；上游不支持时自动降级 */
   toolsEnabled: boolean;
-  /** 对话上下文 Token 预算（1000–8000），超出部分的历史消息将被截断以节省 token */
+  /** 对话上下文 Token 预算（0 表示不限制；1000–8000 时超出部分的历史消息将被截断以节省 token） */
   tokenBudget: number;
   /** 是否启用扩展技能（学术检索 / 任务建议 / 百科教学）；仅 toolsEnabled 为真时生效 */
   extSkillsEnabled: boolean;
@@ -39,7 +39,7 @@ export interface AISettingsInput {
   systemPrompt?: string;
   /** 是否启用 AI 技能（函数调用）；默认开启 */
   toolsEnabled?: boolean;
-  /** 对话上下文 Token 预算（1000–8000），用于截断历史节省 token */
+  /** 对话上下文 Token 预算（0 表示不限制；1000–8000 时用于截断历史节省 token） */
   tokenBudget?: number;
   /** 是否启用扩展技能（学术/任务建议/教学）；默认开启，仅 toolsEnabled 为真时生效 */
   extSkillsEnabled?: boolean;

@@ -1428,7 +1428,7 @@ export default {
                         );
                     }
                     if (data.tokenBudget !== undefined && Number.isFinite(data.tokenBudget)) {
-                        const budget = Math.min(8000, Math.max(1000, data.tokenBudget));
+                        const budget = Math.max(0, Math.min(8000, Math.round(data.tokenBudget)));
                         await api.setConfig("ai.tokenBudget", String(budget));
                     }
                     if (data.extSkillsEnabled !== undefined) {
@@ -1567,7 +1567,8 @@ export default {
 
                     // 组装 OpenAI 兼容请求：系统提示词 + 基于 Token 预算的历史窗口
                     //  ① 单条最长 8000 字符、最多取最近 20 条
-                    //  ② Token 预算：estimateTokens 估算，超出 tokenBudget 时从最旧处截断（节省 token）
+                    //  ② Token 预算：tokenBudget 为 0 时不限制；大于 0 时 estimateTokens 估算
+                    //     超限则从最旧处截断（节省 token）
                     //  ③ 系统提示词恒定放在最前（利于上游 prompt caching），动态内容追加在其后
                     const filtered = data.messages
                         .filter(
@@ -1608,6 +1609,9 @@ export default {
 
                     try {
                         const controller = new AbortController();
+                        // 访客点击「停止」时（前端 abort fetch）联动中止上游请求，避免无效等待与配额浪费
+                        const onClientAbort = () => controller.abort();
+                        request.signal.addEventListener("abort", onClientAbort, { once: true });
                         // 技能调用可能产生多轮上游请求，单次对话总超时 90s
                         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
@@ -1618,6 +1622,8 @@ export default {
                         let finalReply: string | null = null;
 
                         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+                            // 访客已点「停止」：立即退出，不再发起新一轮上游调用
+                            if (controller.signal.aborted) break;
                             const body: ChatCompletionBody = {
                                 model: trimmedModel,
                                 messages: messagesForLLM,
@@ -1788,6 +1794,7 @@ export default {
                         }
 
                         clearTimeout(timeoutId);
+                        request.signal.removeEventListener("abort", onClientAbort);
 
                         if (finalReply) {
                             return createJsonResponse(
@@ -1800,15 +1807,27 @@ export default {
                                 request
                             );
                         }
+                        // 访客已点击「停止」：返回已停止，避免误报为生成失败
+                        if (controller.signal.aborted || request.signal.aborted) {
+                            return createJsonResponse(
+                                { success: false, message: "已停止生成" },
+                                request,
+                                { status: 499 }
+                            );
+                        }
                         return createJsonResponse(
                             { success: false, message: "AI 未能生成有效回答，请重试" },
                             request,
                             { status: 502 }
                         );
                     } catch (error) {
+                        // 注：try 块内声明的 controller 在 catch 中不可见（块级作用域），故改用 request.signal 判断客户端中止
+                        const abortedByClient = request.signal.aborted;
                         const message =
                             error instanceof Error && error.name === "AbortError"
-                                ? "AI 响应超时，请稍后重试"
+                                ? abortedByClient
+                                    ? "已停止生成"
+                                    : "AI 响应超时，请稍后重试"
                                 : "AI 请求失败，请检查 Base URL 与网络连通性";
                         log({
                             level: "warn",
@@ -2186,10 +2205,11 @@ function isToolsUnsupportedError(status: number, detail: string): boolean {
     );
 }
 
-/** 解析 Token 预算配置（D1 中存字符串）：非法时回落到默认值 2600 */
+/** 解析 Token 预算配置（D1 中存字符串）：0 或非法值时表示不限制历史长度；正整数收敛在 1000–8000 */
 function parseTokenBudget(raw?: string | null): number {
     const n = Number(raw || "");
-    return Number.isFinite(n) && n >= 1000 && n <= 8000 ? Math.round(n) : 2600;
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(8000, Math.max(1000, Math.round(n)));
 }
 /**
  * 检索站点（技能用）：关键词匹配站点名称/描述/分组名，tag 额外按分组名过滤；
@@ -3038,10 +3058,10 @@ function validateAISettings(data: AiSettingsInput): string[] {
         data.tokenBudget !== undefined &&
         (typeof data.tokenBudget !== "number" ||
             !Number.isFinite(data.tokenBudget) ||
-            data.tokenBudget < 1000 ||
+            data.tokenBudget < 0 ||
             data.tokenBudget > 8000)
     ) {
-        errors.push("tokenBudget 必须是 1000–8000 之间的数字");
+        errors.push("tokenBudget 必须是 0–8000 之间的数字（0 表示不限制）");
     }
     if (
         data.apiKey !== undefined &&

@@ -116,7 +116,7 @@ const mockConfigs: Record<string, string> = {
   'ai.enabled': 'false',
   'ai.models': '[]',
   'ai.toolsEnabled': 'true',
-  'ai.tokenBudget': '2600',
+  'ai.tokenBudget': '0',
   // AI 扩展技能开关（学术检索 / 任务建议 / 百科教学；需 toolsEnabled 开启才生效）
   'ai.extSkillsEnabled': 'true',
 };
@@ -629,7 +629,7 @@ export class MockNavigationClient {
     models: [],
     systemPrompt: '',
     toolsEnabled: true,
-    tokenBudget: 2600,
+    tokenBudget: 0,
     extSkillsEnabled: true,
     apiKey: '',
   };
@@ -696,15 +696,37 @@ export class MockNavigationClient {
       mockConfigs['ai.extSkillsEnabled'] = data.extSkillsEnabled ? 'true' : 'false';
     }
     if (data.tokenBudget !== undefined && Number.isFinite(data.tokenBudget)) {
-      s.tokenBudget = Math.min(8000, Math.max(1000, Math.round(data.tokenBudget)));
+      s.tokenBudget = Math.max(0, Math.min(8000, Math.round(data.tokenBudget)));
       mockConfigs['ai.tokenBudget'] = String(s.tokenBudget);
     }
     mockConfigs['ai.enabled'] = s.enabled ? 'true' : 'false';
     return { success: true, message: 'AI 设置已保存' };
   }
 
-  async aiChat(messages: AIMessage[], model?: string): Promise<AIChatResponse> {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+  /** 可中止的延时：返回 false 表示已被中止 */
+  private async sleepOrAborted(ms: number, signal?: AbortSignal): Promise<boolean> {
+    if (signal?.aborted) return false;
+    return new Promise<boolean>((resolve) => {
+      const onAbort = () => {
+        clearTimeout(t);
+        resolve(false);
+      };
+      const t = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve(true);
+      }, ms);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  async aiChat(
+    messages: AIMessage[],
+    model?: string,
+    signal?: AbortSignal
+  ): Promise<AIChatResponse> {
+    if (!(await this.sleepOrAborted(600, signal))) {
+      return { success: false, message: '已停止生成' };
+    }
     if (!this.mockAISettings.enabled || !this.mockAISettings.apiKey) {
       return { success: false, message: 'AI 尚未配置，请先在设置中填写 Base URL 与 API 密钥' };
     }
