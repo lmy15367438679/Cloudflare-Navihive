@@ -17,6 +17,7 @@ import AppsIcon from '@mui/icons-material/Apps';
 import SearchBox from '../SearchBox';
 import type { Group, Site } from '../../API/http';
 import type { SearchResultItem } from '../../utils/search';
+import { EXPAND_SIDEBAR_EVENT } from '../../hooks/useSearchShortcut';
 
 interface SidebarProps {
   groups: Group[];
@@ -53,7 +54,20 @@ const Sidebar = memo(function Sidebar({
 }: SidebarProps) {
   const isStatic = variant === 'static';
   const [expanded, setExpanded] = useState(isStatic);
+  const navRef = useRef<HTMLDivElement | null>(null);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 侧栏内是否有「正在输入」的焦点（搜索框等） */
+  const isTypingInsideNav = useCallback(() => {
+    const nav = navRef.current;
+    const active = document.activeElement;
+    return Boolean(
+      nav &&
+        active &&
+        nav.contains(active) &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+    );
+  }, []);
 
   const handleMouseEnter = useCallback(() => {
     if (leaveTimerRef.current) {
@@ -64,11 +78,14 @@ const Sidebar = memo(function Sidebar({
   }, []);
 
   const handleMouseLeave = useCallback(() => {
+    // 快捷键（⌘K / Ctrl+K / /）展开侧栏后用户仍在搜索框内输入时，不因鼠标掠过而收起，
+    // 否则输入框会带着焦点消失（焦点还在、内容看不见）。此时的收起交由下方 focusout 驱动。
+    if (isTypingInsideNav()) return;
     leaveTimerRef.current = setTimeout(() => {
       setExpanded(false);
       onSidebarCollapse?.();
     }, 200);
-  }, [onSidebarCollapse]);
+  }, [isTypingInsideNav, onSidebarCollapse]);
 
   const sites: Site[] = useMemo(
     () => (groups as Array<Group & { sites?: Site[] }>).flatMap((g) => g.sites || []),
@@ -81,12 +98,32 @@ const Sidebar = memo(function Sidebar({
     configs['site.searchBoxEnabled'] !== 'false' &&
     (isAuthenticated || configs['site.searchBoxGuestEnabled'] !== 'false');
 
-  // 响应 App 层派发的 ⌘K/Ctrl+K：桌面 hover 模式侧栏初始收起，先展开再聚焦搜索框
+  // 响应顶层派发的展开事件（⌘K / Ctrl+K / /）：hover 模式侧栏初始收起，先展开再聚焦搜索框。
+  // 展开与聚焦解耦：事件为同步派发，聚焦由派发侧延迟一帧再发（见 hooks/useSearchShortcut）。
   useEffect(() => {
     const onExpandSidebar = () => setExpanded(true);
-    window.addEventListener('navihive:expand-sidebar', onExpandSidebar);
-    return () => window.removeEventListener('navihive:expand-sidebar', onExpandSidebar);
+    window.addEventListener(EXPAND_SIDEBAR_EVENT, onExpandSidebar);
+    return () => window.removeEventListener(EXPAND_SIDEBAR_EVENT, onExpandSidebar);
   }, []);
+
+  // 焦点驱动收起：快捷键展开后焦点落在搜索框内，一旦焦点离开侧栏（点搜索结果 / 点别处 / Tab 离开），
+  // 延迟收起——面板跟着焦点走，不会出现「焦点还在、面板却已经消失」的错位状态。
+  // 焦点从未进入侧栏时 focusout 不会触发，因此普通 hover 展开的交互完全不受影响。
+  useEffect(() => {
+    if (isStatic) return;
+    const nav = navRef.current;
+    if (!nav) return;
+    const onFocusOut = (e: FocusEvent) => {
+      if (nav.contains(e.relatedTarget as Node | null)) return;
+      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = setTimeout(() => {
+        setExpanded(false);
+        onSidebarCollapse?.();
+      }, 200);
+    };
+    nav.addEventListener('focusout', onFocusOut);
+    return () => nav.removeEventListener('focusout', onFocusOut);
+  }, [isStatic, onSidebarCollapse]);
 
   return (
     <>
@@ -108,7 +145,8 @@ const Sidebar = memo(function Sidebar({
 
       {/* 侧边栏 */}
       <Box
-        component="nav"
+        component='nav'
+        ref={navRef}
         onMouseEnter={isStatic ? undefined : handleMouseEnter}
         onMouseLeave={isStatic ? undefined : handleMouseLeave}
         sx={{
@@ -125,7 +163,9 @@ const Sidebar = memo(function Sidebar({
           ...(isStatic
             ? {}
             : {
-                transform: expanded ? 'translateX(0)' : 'translateX(calc(-1 * var(--sidebar-width) + 4px))',
+                transform: expanded
+                  ? 'translateX(0)'
+                  : 'translateX(calc(-1 * var(--sidebar-width) + 4px))',
                 opacity: expanded ? 1 : 0,
                 transition: 'transform 200ms ease-out, opacity 200ms ease-out',
                 pointerEvents: expanded ? 'auto' : 'none',
@@ -145,7 +185,6 @@ const Sidebar = memo(function Sidebar({
                 updated_at: g.updated_at,
               }))}
               sites={sites}
-              listenGlobalShortcut={!isStatic}
               onInternalResultClick={(result) => {
                 onSearchResultClick(result);
                 setExpanded(false);
@@ -179,10 +218,10 @@ const Sidebar = memo(function Sidebar({
               }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
-                <AppsIcon fontSize="small" />
+                <AppsIcon fontSize='small' />
               </ListItemIcon>
               <ListItemText
-                primary="全部站点"
+                primary='全部站点'
                 primaryTypographyProps={{
                   fontFamily: 'var(--font-heading)',
                   fontSize: '14px',
@@ -195,7 +234,7 @@ const Sidebar = memo(function Sidebar({
               <Tooltip
                 key={group.id}
                 title={group.name.length > 12 ? group.name : ''}
-                placement="right"
+                placement='right'
               >
                 <ListItemButton
                   onClick={() => onGroupClick(group.id as number)}
@@ -216,7 +255,7 @@ const Sidebar = memo(function Sidebar({
                   }}
                 >
                   <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
-                    <FolderIcon fontSize="small" />
+                    <FolderIcon fontSize='small' />
                   </ListItemIcon>
                   <ListItemText
                     primary={group.name}
@@ -228,7 +267,7 @@ const Sidebar = memo(function Sidebar({
                     }}
                   />
                   <Typography
-                    variant="caption"
+                    variant='caption'
                     sx={{
                       fontFamily: 'var(--font-body)',
                       color: 'var(--text-secondary)',
@@ -242,7 +281,7 @@ const Sidebar = memo(function Sidebar({
                       fontWeight: 500,
                     }}
                   >
-                    {((group as Group & { sites?: Site[] }).sites?.length) || 0}
+                    {(group as Group & { sites?: Site[] }).sites?.length || 0}
                   </Typography>
                 </ListItemButton>
               </Tooltip>
@@ -264,10 +303,10 @@ const Sidebar = memo(function Sidebar({
               }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
-                <AddIcon fontSize="small" />
+                <AddIcon fontSize='small' />
               </ListItemIcon>
               <ListItemText
-                primary="新增分组"
+                primary='新增分组'
                 primaryTypographyProps={{
                   fontFamily: 'var(--font-heading)',
                   fontSize: '14px',
@@ -287,10 +326,10 @@ const Sidebar = memo(function Sidebar({
               }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'var(--text-secondary)' }}>
-                <SettingsIcon fontSize="small" />
+                <SettingsIcon fontSize='small' />
               </ListItemIcon>
               <ListItemText
-                primary="个性化设置"
+                primary='个性化设置'
                 primaryTypographyProps={{
                   fontFamily: 'var(--font-heading)',
                   fontSize: '14px',
@@ -310,10 +349,10 @@ const Sidebar = memo(function Sidebar({
               }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'var(--text-secondary)' }}>
-                <SettingsIcon fontSize="small" />
+                <SettingsIcon fontSize='small' />
               </ListItemIcon>
               <ListItemText
-                primary="管理员登录"
+                primary='管理员登录'
                 primaryTypographyProps={{
                   fontFamily: 'var(--font-heading)',
                   fontSize: '14px',
@@ -332,10 +371,10 @@ const Sidebar = memo(function Sidebar({
               }}
             >
               <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
-                <LogoutIcon fontSize="small" />
+                <LogoutIcon fontSize='small' />
               </ListItemIcon>
               <ListItemText
-                primary="退出登录"
+                primary='退出登录'
                 primaryTypographyProps={{
                   fontFamily: 'var(--font-heading)',
                   fontSize: '14px',
@@ -351,4 +390,3 @@ const Sidebar = memo(function Sidebar({
 });
 
 export default Sidebar;
-

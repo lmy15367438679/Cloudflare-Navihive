@@ -19,6 +19,7 @@ import { sanitizeCSS, isSecureUrl, extractDomain } from './utils/url';
 import { SearchResultItem } from './utils/search';
 import { useAuth } from './hooks/useAuth';
 import { useData } from './hooks/useData';
+import { useSearchShortcut } from './hooks/useSearchShortcut';
 import AppLayout from './components/Layout/AppLayout';
 import Sidebar from './components/Layout/Sidebar';
 import TopBar from './components/Layout/TopBar';
@@ -184,27 +185,9 @@ function App() {
   }, []);
 
   // ========== 全局搜索快捷键（⌘K / Ctrl+K / /） ==========
-  // 放在 App 顶层统一拦截：即使桌面侧栏处于收起（opacity:0）状态也能聚焦搜索框。
-  // 通过 CustomEvent 通知 Sidebar 展开 + SearchBox 聚焦，两端解耦、单点控制。
-  useEffect(() => {
-    const isTypingTarget = (target: EventTarget | null): boolean => {
-      if (!(target instanceof HTMLElement)) return false;
-      const tag = target.tagName;
-      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-    };
-
-    const handleGlobalShortcut = (e: KeyboardEvent) => {
-      const isFocusSearch = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
-      const isSlashSearch = e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target);
-      if (!isFocusSearch && !isSlashSearch) return;
-      e.preventDefault();
-      window.dispatchEvent(new CustomEvent('navihive:expand-sidebar'));
-      window.dispatchEvent(new CustomEvent('navihive:focus-search'));
-    };
-
-    document.addEventListener('keydown', handleGlobalShortcut, true);
-    return () => document.removeEventListener('keydown', handleGlobalShortcut, true);
-  }, []);
+  // 逻辑集中在 hooks/useSearchShortcut.ts：顶层捕获阶段拦截 + CustomEvent 解耦，
+  // 侧栏展开后延迟一帧再派发聚焦（见该文件头部说明）。
+  useSearchShortcut();
 
   // ========== 错误提示 ==========
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -408,7 +391,9 @@ function App() {
       for (const g of groups) {
         for (const s of g.sites ?? []) {
           if (!s.url) continue;
-          const domain = extractDomain(s.url)?.replace(/^www\./, '').toLowerCase();
+          const domain = extractDomain(s.url)
+            ?.replace(/^www\./, '')
+            .toLowerCase();
           if (!domain) continue;
           const list = domainToSites.get(domain);
           if (list) list.push(s.id as number);
@@ -890,19 +875,38 @@ function App() {
             zIndex: 2,
           }}
         >
-
           {/* 排序模式工具栏 */}
           {sortMode !== SortMode.None && (
             <Box sx={{ display: 'flex', gap: 1, mb: 3, alignItems: 'center' }}>
-              <Typography sx={{ fontFamily: 'var(--font-heading)', fontSize: '14px', color: 'var(--text-secondary)', flex: 1 }}>
+              <Typography
+                sx={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '14px',
+                  color: 'var(--text-secondary)',
+                  flex: 1,
+                }}
+              >
                 {sortMode === SortMode.GroupSort ? '拖拽分组以重新排序' : '拖拽站点以重新排序'}
               </Typography>
               {sortMode === SortMode.GroupSort && (
-                <Button variant="contained" size="small" onClick={handleSaveGroupOrder} sx={{ bgcolor: 'var(--color-accent)', '&:hover': { bgcolor: 'var(--color-accent-dim)' } }}>
+                <Button
+                  variant='contained'
+                  size='small'
+                  onClick={handleSaveGroupOrder}
+                  sx={{
+                    bgcolor: 'var(--color-accent)',
+                    '&:hover': { bgcolor: 'var(--color-accent-dim)' },
+                  }}
+                >
                   保存
                 </Button>
               )}
-              <Button variant="outlined" size="small" onClick={cancelSort} sx={{ borderColor: 'var(--color-border)', color: 'var(--text-secondary)' }}>
+              <Button
+                variant='outlined'
+                size='small'
+                onClick={cancelSort}
+                sx={{ borderColor: 'var(--color-border)', color: 'var(--text-secondary)' }}
+              >
                 取消
               </Button>
             </Box>
@@ -921,7 +925,10 @@ function App() {
                 px: 3,
                 textAlign: 'center',
                 animation: 'contentIn 350ms ease-out',
-                '@keyframes contentIn': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+                '@keyframes contentIn': {
+                  from: { opacity: 0, transform: 'translateY(8px)' },
+                  to: { opacity: 1, transform: 'translateY(0)' },
+                },
               }}
             >
               <Box
@@ -936,16 +943,34 @@ function App() {
                   mb: 3,
                 }}
               >
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
+                <svg
+                  width='36'
+                  height='36'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='var(--color-accent)'
+                  strokeWidth='1.5'
+                  strokeLinecap='round'
+                >
+                  <path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' />
+                  <polyline points='9 22 9 12 15 12 15 22' />
                 </svg>
               </Box>
-              <Typography variant="h6" sx={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: 'var(--text-primary)', mb: 1 }}>
+              <Typography
+                variant='h6'
+                sx={{
+                  fontFamily: 'var(--font-heading)',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  mb: 1,
+                }}
+              >
                 还没有任何内容
               </Typography>
-              <Typography variant="body2" sx={{ color: 'var(--text-secondary)', maxWidth: 360 }}>
-                {isAuthenticated ? '点击左下角「新增分组」开始创建你的导航站' : '管理员登录后即可添加导航内容'}
+              <Typography variant='body2' sx={{ color: 'var(--text-secondary)', maxWidth: 360 }}>
+                {isAuthenticated
+                  ? '点击左下角「新增分组」开始创建你的导航站'
+                  : '管理员登录后即可添加导航内容'}
               </Typography>
             </Box>
           )}
@@ -984,85 +1009,134 @@ function App() {
                 />
               ) : (
                 <Stack spacing={3}>
-                  {(activeGroupId
-                    ? groups.filter((g) => g.id === activeGroupId)
-                    : groups
-                  ).map((group) => (
-                    <Box key={`group-${group.id}`} id={`group-${group.id}`}>
-                      <GroupCard
-                        group={group}
-                        expandSignal={expandSignal}
-                        sortMode={sortMode === SortMode.None ? 'None' : 'SiteSort'}
-                        currentSortingGroupId={currentSortingGroupId}
-                        viewMode={viewMode}
-                        onUpdate={handleSiteUpdate}
-                        onDelete={handleSiteDelete}
-                        onSaveSiteOrder={handleSaveSiteOrder}
-                        onStartSiteSort={startSiteSort}
-                        onAddSite={handleOpenAddSite}
-                        onUpdateGroup={handleGroupUpdate}
-                        onDeleteGroup={handleGroupDelete}
-                        configs={configs}
-                        groups={groups}
-                        onMoveGroup={handleMoveGroup}
-                        favoriteIds={favoriteIds}
-                        onToggleFavorite={toggleFavorite}
-                      />
-                    </Box>
-                  ))}
+                  {(activeGroupId ? groups.filter((g) => g.id === activeGroupId) : groups).map(
+                    (group) => (
+                      <Box key={`group-${group.id}`} id={`group-${group.id}`}>
+                        <GroupCard
+                          group={group}
+                          expandSignal={expandSignal}
+                          sortMode={sortMode === SortMode.None ? 'None' : 'SiteSort'}
+                          currentSortingGroupId={currentSortingGroupId}
+                          viewMode={viewMode}
+                          onUpdate={handleSiteUpdate}
+                          onDelete={handleSiteDelete}
+                          onSaveSiteOrder={handleSaveSiteOrder}
+                          onStartSiteSort={startSiteSort}
+                          onAddSite={handleOpenAddSite}
+                          onUpdateGroup={handleGroupUpdate}
+                          onDeleteGroup={handleGroupDelete}
+                          configs={configs}
+                          groups={groups}
+                          onMoveGroup={handleMoveGroup}
+                          favoriteIds={favoriteIds}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                      </Box>
+                    )
+                  )}
                 </Stack>
               )}
             </Box>
           )}
 
           {/* 新增分组对话框 */}
-          <Dialog open={openAddGroup} onClose={handleCloseAddGroup} maxWidth='md' fullWidth
-            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+          <Dialog
+            open={openAddGroup}
+            onClose={handleCloseAddGroup}
+            maxWidth='md'
+            fullWidth
+            slotProps={{
+              paper: {
+                sx: {
+                  bgcolor: 'var(--color-elevated)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                },
+              },
+            }}
           >
             <DialogTitle>
               新增分组
-              <IconButton aria-label='close' onClick={handleCloseAddGroup} sx={{ position: 'absolute', right: 8, top: 8 }}>
+              <IconButton
+                aria-label='close'
+                onClick={handleCloseAddGroup}
+                sx={{ position: 'absolute', right: 8, top: 8 }}
+              >
                 <CloseIcon />
               </IconButton>
             </DialogTitle>
             <DialogContent>
               <DialogContentText sx={{ mb: 2 }}>请输入新分组的信息</DialogContentText>
               <TextField
-                autoFocus margin='dense' id='group-name' name='name' label='分组名称'
-                type='text' fullWidth variant='outlined'
-                value={newGroup.name} onChange={handleGroupInputChange} sx={{ mb: 2 }}
+                autoFocus
+                margin='dense'
+                id='group-name'
+                name='name'
+                label='分组名称'
+                type='text'
+                fullWidth
+                variant='outlined'
+                value={newGroup.name}
+                onChange={handleGroupInputChange}
+                sx={{ mb: 2 }}
               />
               <FormControlLabel
                 control={
                   <Switch
                     checked={newGroup.is_public !== 0}
-                    onChange={(e) => setNewGroup({ ...newGroup, is_public: e.target.checked ? 1 : 0 })}
+                    onChange={(e) =>
+                      setNewGroup({ ...newGroup, is_public: e.target.checked ? 1 : 0 })
+                    }
                     color='primary'
                   />
                 }
                 label={
                   <Box>
-                    <Typography variant='body1'>{newGroup.is_public !== 0 ? '公开分组' : '私密分组'}</Typography>
+                    <Typography variant='body1'>
+                      {newGroup.is_public !== 0 ? '公开分组' : '私密分组'}
+                    </Typography>
                     <Typography variant='caption' color='text.secondary'>
-                      {newGroup.is_public !== 0 ? '所有访客都可以看到此分组' : '只有管理员登录后才能看到此分组'}
+                      {newGroup.is_public !== 0
+                        ? '所有访客都可以看到此分组'
+                        : '只有管理员登录后才能看到此分组'}
                     </Typography>
                   </Box>
                 }
               />
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleCloseAddGroup} variant='outlined'>取消</Button>
-              <Button onClick={handleCreateGroupClick} variant='contained' color='primary'>创建</Button>
+              <Button onClick={handleCloseAddGroup} variant='outlined'>
+                取消
+              </Button>
+              <Button onClick={handleCreateGroupClick} variant='contained' color='primary'>
+                创建
+              </Button>
             </DialogActions>
           </Dialog>
 
           {/* 新增站点对话框 */}
-          <Dialog open={openAddSite} onClose={handleCloseAddSite} maxWidth='md' fullWidth
-            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+          <Dialog
+            open={openAddSite}
+            onClose={handleCloseAddSite}
+            maxWidth='md'
+            fullWidth
+            slotProps={{
+              paper: {
+                sx: {
+                  bgcolor: 'var(--color-elevated)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                },
+              },
+            }}
           >
             <DialogTitle>
               新增站点
-              <IconButton aria-label='close' onClick={handleCloseAddSite} sx={{ position: 'absolute', right: 8, top: 8 }}>
+              <IconButton
+                aria-label='close'
+                onClick={handleCloseAddSite}
+                sx={{ position: 'absolute', right: 8, top: 8 }}
+              >
                 <CloseIcon />
               </IconButton>
             </DialogTitle>
@@ -1071,30 +1145,67 @@ function App() {
               <Stack spacing={2}>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <Box sx={{ flex: 1 }}>
-                    <TextField autoFocus margin='dense' id='site-name' name='name' label='站点名称'
-                      type='text' fullWidth variant='outlined' value={newSite.name} onChange={handleSiteInputChange} />
+                    <TextField
+                      autoFocus
+                      margin='dense'
+                      id='site-name'
+                      name='name'
+                      label='站点名称'
+                      type='text'
+                      fullWidth
+                      variant='outlined'
+                      value={newSite.name}
+                      onChange={handleSiteInputChange}
+                    />
                   </Box>
                   <Box sx={{ flex: 1 }}>
-                    <TextField margin='dense' id='site-url' name='url' label='站点URL'
-                      type='url' fullWidth variant='outlined' value={newSite.url} onChange={handleSiteInputChange} />
+                    <TextField
+                      margin='dense'
+                      id='site-url'
+                      name='url'
+                      label='站点URL'
+                      type='url'
+                      fullWidth
+                      variant='outlined'
+                      value={newSite.url}
+                      onChange={handleSiteInputChange}
+                    />
                   </Box>
                 </Box>
-                <TextField margin='dense' id='site-icon' name='icon' label='图标URL'
-                  type='url' fullWidth variant='outlined' value={newSite.icon} onChange={handleSiteInputChange}
+                <TextField
+                  margin='dense'
+                  id='site-icon'
+                  name='icon'
+                  label='图标URL'
+                  type='url'
+                  fullWidth
+                  variant='outlined'
+                  value={newSite.icon}
+                  onChange={handleSiteInputChange}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position='end'>
                         <IconButton
                           onClick={() => {
-                            if (!newSite.url) { handleError('请先输入站点URL'); return; }
+                            if (!newSite.url) {
+                              handleError('请先输入站点URL');
+                              return;
+                            }
                             const domain = extractDomain(newSite.url);
                             if (domain) {
-                              const actualIconApi = configs['site.iconApi'] ||
+                              const actualIconApi =
+                                configs['site.iconApi'] ||
                                 'https://www.faviconextractor.com/favicon/{domain}?larger=true';
-                              setNewSite({ ...newSite, icon: actualIconApi.replace('{domain}', domain) });
-                            } else { handleError('无法从URL中获取域名'); }
+                              setNewSite({
+                                ...newSite,
+                                icon: actualIconApi.replace('{domain}', domain),
+                              });
+                            } else {
+                              handleError('无法从URL中获取域名');
+                            }
                           }}
-                          edge='end' title='自动获取图标'
+                          edge='end'
+                          title='自动获取图标'
                         >
                           <AutoFixHighIcon />
                         </IconButton>
@@ -1102,23 +1213,49 @@ function App() {
                     ),
                   }}
                 />
-                <TextField margin='dense' id='site-description' name='description' label='站点描述'
-                  type='text' fullWidth variant='outlined' value={newSite.description} onChange={handleSiteInputChange} />
-                <TextField margin='dense' id='site-notes' name='notes' label='备注'
-                  type='text' fullWidth multiline rows={2} variant='outlined' value={newSite.notes} onChange={handleSiteInputChange} />
+                <TextField
+                  margin='dense'
+                  id='site-description'
+                  name='description'
+                  label='站点描述'
+                  type='text'
+                  fullWidth
+                  variant='outlined'
+                  value={newSite.description}
+                  onChange={handleSiteInputChange}
+                />
+                <TextField
+                  margin='dense'
+                  id='site-notes'
+                  name='notes'
+                  label='备注'
+                  type='text'
+                  fullWidth
+                  multiline
+                  rows={2}
+                  variant='outlined'
+                  value={newSite.notes}
+                  onChange={handleSiteInputChange}
+                />
                 <FormControlLabel
                   control={
                     <Switch
                       checked={newSite.is_public !== 0}
-                      onChange={(e) => setNewSite({ ...newSite, is_public: e.target.checked ? 1 : 0 })}
+                      onChange={(e) =>
+                        setNewSite({ ...newSite, is_public: e.target.checked ? 1 : 0 })
+                      }
                       color='primary'
                     />
                   }
                   label={
                     <Box>
-                      <Typography variant='body1'>{newSite.is_public !== 0 ? '公开站点' : '私密站点'}</Typography>
+                      <Typography variant='body1'>
+                        {newSite.is_public !== 0 ? '公开站点' : '私密站点'}
+                      </Typography>
                       <Typography variant='caption' color='text.secondary'>
-                        {newSite.is_public !== 0 ? '所有访客都可以看到此站点' : '只有管理员登录后才能看到此站点'}
+                        {newSite.is_public !== 0
+                          ? '所有访客都可以看到此站点'
+                          : '只有管理员登录后才能看到此站点'}
                       </Typography>
                     </Box>
                   }
@@ -1126,18 +1263,38 @@ function App() {
               </Stack>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleCloseAddSite} variant='outlined'>取消</Button>
-              <Button onClick={handleCreateSiteClick} variant='contained' color='primary'>创建</Button>
+              <Button onClick={handleCloseAddSite} variant='outlined'>
+                取消
+              </Button>
+              <Button onClick={handleCreateSiteClick} variant='contained' color='primary'>
+                创建
+              </Button>
             </DialogActions>
           </Dialog>
 
           {/* 导入数据对话框 */}
-          <Dialog open={openImport} onClose={handleCloseImport} maxWidth='sm' fullWidth
-            slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+          <Dialog
+            open={openImport}
+            onClose={handleCloseImport}
+            maxWidth='sm'
+            fullWidth
+            slotProps={{
+              paper: {
+                sx: {
+                  bgcolor: 'var(--color-elevated)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                },
+              },
+            }}
           >
             <DialogTitle>
               导入数据
-              <IconButton aria-label='close' onClick={handleCloseImport} sx={{ position: 'absolute', right: 8, top: 8 }}>
+              <IconButton
+                aria-label='close'
+                onClick={handleCloseImport}
+                sx={{ position: 'absolute', right: 8, top: 8 }}
+              >
                 <CloseIcon />
               </IconButton>
             </DialogTitle>
@@ -1155,15 +1312,19 @@ function App() {
                     已选择文件: {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
                   </Alert>
                 )}
-                {importError && (
-                  <Alert severity='error'>{importError}</Alert>
-                )}
+                {importError && <Alert severity='error'>{importError}</Alert>}
               </Box>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleCloseImport} variant='outlined'>取消</Button>
-              <Button onClick={handleImportDataClick} variant='contained' color='primary'
-                disabled={!importFile || importLoading}>
+              <Button onClick={handleCloseImport} variant='outlined'>
+                取消
+              </Button>
+              <Button
+                onClick={handleImportDataClick}
+                variant='contained'
+                color='primary'
+                disabled={!importFile || importLoading}
+              >
                 {importLoading ? '导入中...' : '开始导入'}
               </Button>
             </DialogActions>
@@ -1177,10 +1338,7 @@ function App() {
           />
 
           {/* 一键收藏对话框 */}
-          <BookmarkletGuide
-            open={openBookmarklet}
-            onClose={() => setOpenBookmarklet(false)}
-          />
+          <BookmarkletGuide open={openBookmarklet} onClose={() => setOpenBookmarklet(false)} />
 
           {/* 批量移动对话框 */}
           <BatchMoveDialog
@@ -1211,7 +1369,6 @@ function App() {
             devOptions={devOptions}
             onDevOptionsChange={handleDevOptionChange}
           />
-
         </Container>
       </AppLayout>
       {/* 性能监控：由 个性化设置 → 开发者 开关控制（本地 localStorage）；VITE_SHOW_PERF 仅作构建时兜底 */}

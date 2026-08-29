@@ -4,7 +4,7 @@
  * 符合 WAI-ARIA combobox 模式，支持键盘导航
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Paper,
   InputBase,
@@ -42,18 +42,52 @@ import {
   type SearchEngine,
 } from '../config/searchEngines';
 import type { Group, Site } from '../API/http';
+import { FOCUS_SEARCH_EVENT } from '../hooks/useSearchShortcut';
 
 interface SearchBoxProps {
   groups: Group[];
   sites: Site[];
   onInternalResultClick?: (result: SearchResultItem) => void;
-  /** 是否响应全局 ⌘K/Ctrl+K（仅桌面侧栏实例启用，移动端抽屉副本忽略避免重复聚焦） */
-  listenGlobalShortcut?: boolean;
 }
 
 type SearchMode = 'internal' | 'external';
 
-const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultClick, listenGlobalShortcut = true }) => {
+/**
+ * 快捷键提示徽标（⌘K / Ctrl+K）
+ *
+ * 仅在输入框为空时显示，避免与「清空 / 搜索」按钮争抢宽度；移动端隐藏
+ *（触屏无物理键盘，提示无意义且占用窄屏空间）。
+ * aria-hidden：它只是视觉提示，键盘可用性已由 input 的 aria-keyshortcuts 声明。
+ */
+function SearchShortcutHint({ isMac }: { isMac: boolean }) {
+  return (
+    <Box
+      component='kbd'
+      aria-hidden='true'
+      title='按此快捷键聚焦搜索框'
+      sx={{
+        flexShrink: 0,
+        mr: 0.5,
+        px: 0.75,
+        py: 0.25,
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--color-border)',
+        bgcolor: 'var(--color-card-hover)',
+        color: 'var(--text-tertiary)',
+        fontFamily: 'var(--font-heading)',
+        fontSize: '11px',
+        lineHeight: 1.2,
+        whiteSpace: 'nowrap',
+        display: { xs: 'none', sm: 'inline-flex' },
+        transition: 'color 150ms ease, background-color 150ms ease',
+      }}
+    >
+      {isMac ? '⌘K' : 'Ctrl K'}
+    </Box>
+  );
+}
+
+const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultClick }) => {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<SearchMode>('internal');
   const [results, setResults] = useState<SearchResultItem[]>([]);
@@ -65,6 +99,9 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsListId = 'search-results-list';
+
+  // 平台探测（仅用于展示 ⌘K / Ctrl+K 键位徽标与 aria-keyshortcuts 文案）
+  const isMac = useMemo(() => /Mac|iPhone|iPad|iPod/.test(navigator.userAgent), []);
 
   // 处理站内搜索（带 try-catch 保护）
   const handleInternalSearch = useCallback(
@@ -267,22 +304,26 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
     }
   }, []);
 
-  // 响应 App 层派发的 ⌘K/Ctrl+K 全局快捷键（由 App 先展开侧栏再派发事件聚焦，
-  // 避免侧栏收起时焦点落在不可见输入框上而看似"无响应"）。
+  // 响应顶层派发的 ⌘K/Ctrl+K / ` 快捷键聚焦（事件已延迟到侧栏展开 commit 之后）。
+  // 每个挂载的 SearchBox 都监听：同一时刻至多一个实例是「可见」的
+  //（桌面=hover 侧栏、移动端=抽屉；抽屉关闭时子树不挂载，被 display:none 隐藏的副本
+  // 调用 focus() 只是静默 no-op），因此不会产生重复聚焦。
+  // preventScroll：侧栏收起时输入框被 translateX 移出视口，默认 focus() 会把视口
+  // 滚到元素位置 → 页面出现无意义的横向/纵向抖动；preventScroll 后由过渡自行呈现。
+  // select()：快捷键的目的就是「立刻搜」，直接全选已有内容便于一次性覆盖输入。
   useEffect(() => {
-    if (!listenGlobalShortcut) return;
     const handleFocusSearch = () => {
-      inputRef.current?.focus();
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      input.select();
     };
-    window.addEventListener('navihive:focus-search', handleFocusSearch);
-    return () => window.removeEventListener('navihive:focus-search', handleFocusSearch);
-  }, [listenGlobalShortcut]);
+    window.addEventListener(FOCUS_SEARCH_EVENT, handleFocusSearch);
+    return () => window.removeEventListener(FOCUS_SEARCH_EVENT, handleFocusSearch);
+  }, []);
 
   return (
-    <Box
-      ref={searchBoxRef}
-      sx={{ position: 'relative', width: '100%', maxWidth: 800, mx: 'auto' }}
-    >
+    <Box ref={searchBoxRef} sx={{ position: 'relative', width: '100%', maxWidth: 800, mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {/* 搜索模式切换 */}
         <ToggleButtonGroup
@@ -389,8 +430,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
                   : undefined,
               role: 'combobox',
               autoComplete: 'off',
+              // 无障碍：向读屏软件声明快捷键（格式遵循 WAI-ARIA aria-keyshortcuts）
+              'aria-keyshortcuts': isMac ? 'Meta+K Slash' : 'Control+K Slash',
             }}
           />
+
+          {query || <SearchShortcutHint isMac={isMac} />}
 
           {/* 模式标签 */}
           {query && (
@@ -417,11 +462,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
             sx={{ mr: 0.5 }}
             aria-label={mode === 'external' ? '执行外部搜索' : '搜索'}
           >
-            {mode === 'external' && isOpening ? (
-              <CircularProgress size={20} />
-            ) : (
-              <SearchIcon />
-            )}
+            {mode === 'external' && isOpening ? <CircularProgress size={20} /> : <SearchIcon />}
           </IconButton>
         </Paper>
       </Box>

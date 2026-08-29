@@ -1,7 +1,8 @@
-import { useState, useCallback, cloneElement, isValidElement } from 'react';
+import { useState, useCallback, useEffect, cloneElement, isValidElement } from 'react';
 import { Box, Drawer } from '@mui/material';
 import type { ReactNode } from 'react';
 import ParticlesBackground from '../Effects/ParticlesBackground';
+import { OPEN_MOBILE_DRAWER_EVENT, FOCUS_SEARCH_EVENT } from '../../hooks/useSearchShortcut';
 
 interface AppLayoutProps {
   sidebar: ReactNode;
@@ -29,17 +30,33 @@ export default function AppLayout({
   const handleMobileMenuOpen = useCallback(() => setMobileDrawerOpen(true), []);
   const handleMobileMenuClose = useCallback(() => setMobileDrawerOpen(false), []);
 
-  const topBarWithMobile =
-    isValidElement(topBar)
-      ? cloneElement(topBar as React.ReactElement<{ onMobileMenuOpen?: () => void }>, {
-          onMobileMenuOpen: handleMobileMenuOpen,
-        })
-      : topBar;
+  // 快捷键（⌘K / Ctrl+K / /）在移动端同样要能唤出搜索：Drawer 关闭时子树不挂载，
+  // 顶层首次派发的 FOCUS_SEARCH_EVENT 必然落空，故打开抽屉后等两帧（抽屉渲染完成）
+  // 再补派一次聚焦事件。桌面端由 hover 侧栏负责，此处只接管移动端。
+  useEffect(() => {
+    const onOpenDrawer = () => {
+      // MUI v7 默认 md 断点为 900px，与下方 Drawer 的 display: { xs: 'block', md: 'none' } 一致
+      if (window.matchMedia('(min-width:900px)').matches) return;
+      setMobileDrawerOpen(true);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_EVENT)))
+      );
+    };
+    window.addEventListener(OPEN_MOBILE_DRAWER_EVENT, onOpenDrawer);
+    return () => window.removeEventListener(OPEN_MOBILE_DRAWER_EVENT, onOpenDrawer);
+  }, []);
 
-  const sidebarForDrawer =
-    isValidElement(sidebar)
-      ? cloneElement(sidebar as React.ReactElement<{ variant?: 'hover' | 'static' }>, { variant: 'static' })
-      : sidebar;
+  const topBarWithMobile = isValidElement(topBar)
+    ? cloneElement(topBar as React.ReactElement<{ onMobileMenuOpen?: () => void }>, {
+        onMobileMenuOpen: handleMobileMenuOpen,
+      })
+    : topBar;
+
+  const sidebarForDrawer = isValidElement(sidebar)
+    ? cloneElement(sidebar as React.ReactElement<{ variant?: 'hover' | 'static' }>, {
+        variant: 'static',
+      })
+    : sidebar;
 
   return (
     <Box
@@ -98,7 +115,7 @@ export default function AppLayout({
 
       {/* 移动端抽屉 */}
       <Drawer
-        anchor="left"
+        anchor='left'
         open={mobileDrawerOpen}
         onClose={handleMobileMenuClose}
         sx={{ display: { xs: 'block', md: 'none' } }}
@@ -114,7 +131,7 @@ export default function AppLayout({
       </Drawer>
 
       <Box
-        component="main"
+        component='main'
         sx={{
           position: 'relative',
           zIndex: 2,
