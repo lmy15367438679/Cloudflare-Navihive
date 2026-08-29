@@ -120,7 +120,7 @@ export default function TopBar({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} />
 
-        {aiEnabled && onOpenAI && (
+        {(aiEnabled || isAuthenticated) && onOpenAI && (
           <Tooltip title='AI 智能助手'>
             <IconButton
               size='small'

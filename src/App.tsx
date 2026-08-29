@@ -1349,6 +1349,10 @@ function App() {
             onClose={() => setOpenAIAssistant(false)}
             isAuthenticated={isAuthenticated}
             api={api}
+            onEnabledChange={(enabled) => {
+              // 同步开关到 configs 状态，立即生效（访客入口随开关显隐）
+              setConfigs((prev) => ({ ...prev, 'ai.enabled': enabled ? 'true' : 'false' }));
+            }}
           />
 
           {/* 一键收藏对话框 */}

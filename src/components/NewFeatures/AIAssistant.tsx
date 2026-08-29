@@ -37,6 +37,8 @@ interface AIAssistantProps {
   onClose: () => void;
   isAuthenticated: boolean;
   api: AIAPI;
+  /** 设置保存成功后回调，用于同步 App 中的 configs（影响访客入口开关） */
+  onEnabledChange?: (enabled: boolean) => void;
 }
 
 // 开场快捷提问
@@ -46,7 +48,13 @@ const SUGGESTIONS = [
   '想找编程学习资源，推荐去哪里',
 ];
 
-export default function AIAssistant({ open, onClose, isAuthenticated, api }: AIAssistantProps) {
+export default function AIAssistant({
+  open,
+  onClose,
+  isAuthenticated,
+  api,
+  onEnabledChange,
+}: AIAssistantProps) {
   const [view, setView] = useState<'chat' | 'settings'>('chat');
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [input, setInput] = useState('');
@@ -68,21 +76,33 @@ export default function AIAssistant({ open, onClose, isAuthenticated, api }: AIA
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const settingsLoadedRef = useRef(false);
+  // 用 ref 同步最新设置，避免 effect 在依赖数组中引入 settings 造成循环
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
-  // 打开弹窗且为管理员时：拉取一次当前 AI 设置（同会话内不重复请求）
+  // 打开弹窗时：管理员拉取一次当前 AI 设置（同会话内不重复请求）；
+  // 若 AI 尚未启用，则默认展示设置面板，确保管理员能直接看到并开启功能
   useEffect(() => {
-    if (open && isAuthenticated && !settingsLoadedRef.current) {
-      settingsLoadedRef.current = true;
-      setSettingsLoading(true);
-      api
-        .getAISettings()
-        .then((s) => setSettings(s))
-        .catch(() => setSaveMsg({ type: 'error', text: '读取 AI 设置失败，请稍后重试' }))
-        .finally(() => setSettingsLoading(false));
-    }
-    // 关闭时回到对话视图
-    if (!open) {
-      setView('chat');
+    if (open) {
+      if (!isAuthenticated) {
+        setView('chat');
+      } else if (settingsLoadedRef.current) {
+        // 设置已加载过：未启用进设置面板，已启用进对话
+        setView(settingsRef.current.enabled ? 'chat' : 'settings');
+      } else {
+        settingsLoadedRef.current = true;
+        setSettingsLoading(true);
+        api
+          .getAISettings()
+          .then((s) => {
+            setSettings(s);
+            setView(s.enabled ? 'chat' : 'settings');
+          })
+          .catch(() => setSaveMsg({ type: 'error', text: '读取 AI 设置失败，请稍后重试' }))
+          .finally(() => setSettingsLoading(false));
+      }
+    } else {
+      // 关闭时清空错误，保持当前视图状态以便下次打开复用
       setChatError(null);
     }
   }, [open, isAuthenticated, api]);
@@ -126,9 +146,11 @@ export default function AIAssistant({ open, onClose, isAuthenticated, api }: AIA
       setApiKey('');
       setSaveMsg({ type: 'success', text: res.message || 'AI 设置已保存' });
       // 回读最新状态（含服务器生成的掩码），并同步全局开关
+      let nowEnabled = settings.enabled;
       try {
         const fresh = await api.getAISettings();
         setSettings(fresh);
+        nowEnabled = fresh.enabled;
       } catch {
         setSettings((prev) => ({
           ...prev,
@@ -136,7 +158,9 @@ export default function AIAssistant({ open, onClose, isAuthenticated, api }: AIA
           hasKey: !!(apiKey.trim() || prev.hasKey),
         }));
       }
-      setView('chat');
+      // 保存成功后：开启 → 回到对话；仍为关闭 → 留在设置面板继续操作
+      setView(nowEnabled ? 'chat' : 'settings');
+      onEnabledChange?.(nowEnabled);
     } else {
       setSaveMsg({ type: 'error', text: res.message || '保存失败，请重试' });
     }
