@@ -112,6 +112,8 @@ const DEFAULT_CONFIGS = {
   'site.imageCache': 'false',
   // AI 智能助手总开关（管理员在助手弹窗→设置中开启；默认关闭）
   'ai.enabled': 'false',
+  // AI 多模型列表（JSON 数组字符串，第一个为默认模型；管理员在设置中维护）
+  'ai.models': '[]',
 };
 
 function App() {

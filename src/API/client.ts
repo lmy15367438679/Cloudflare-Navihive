@@ -333,13 +333,14 @@ export class NavigationClient {
   }
 
   // 发送对话消息（Worker 解密密钥后调用 OpenAI 兼容接口，密钥不经过浏览器）
-  async aiChat(messages: AIMessage[]): Promise<AIChatResponse> {
+  // model 可选：不传则使用服务端默认模型（settings.model），传则切换使用指定模型
+  async aiChat(messages: AIMessage[], model?: string): Promise<AIChatResponse> {
     try {
       const response = await fetch(`${this.baseUrl}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, model: model || undefined }),
       });
       const data = (await response.json().catch(() => null)) as AIChatResponse | null;
       if (!response.ok) {

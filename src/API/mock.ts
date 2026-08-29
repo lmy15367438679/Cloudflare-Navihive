@@ -609,12 +609,14 @@ export class MockNavigationClient {
     enabled: boolean;
     baseUrl: string;
     model: string;
+    models: string[];
     systemPrompt: string;
     apiKey: string;
   } = {
     enabled: false,
     baseUrl: '',
     model: '',
+    models: [],
     systemPrompt: '',
     apiKey: '',
   };
@@ -626,6 +628,7 @@ export class MockNavigationClient {
       enabled: s.enabled,
       baseUrl: s.baseUrl,
       model: s.model,
+      models: s.models,
       systemPrompt: s.systemPrompt,
       hasKey: Boolean(s.apiKey),
       maskedKey: s.apiKey ? `****${s.apiKey.slice(-4)}` : '',
@@ -637,8 +640,27 @@ export class MockNavigationClient {
     const s = this.mockAISettings;
     if (data.enabled !== undefined) s.enabled = data.enabled;
     if (data.baseUrl !== undefined) s.baseUrl = data.baseUrl.trim();
-    if (data.model !== undefined) s.model = data.model.trim();
     if (data.systemPrompt !== undefined) s.systemPrompt = data.systemPrompt;
+    // 模型列表整体覆盖：去空白 / 去空 / 去重，最多 20 个
+    if (data.models !== undefined) {
+      const seen = new Set<string>();
+      const next: string[] = [];
+      for (const raw of data.models) {
+        const m = typeof raw === 'string' ? raw.trim() : '';
+        if (m && !seen.has(m) && next.length < 20) {
+          seen.add(m);
+          next.push(m);
+        }
+      }
+      s.models = next;
+      // 未显式传默认模型时，列表第一个作为默认模型
+      if (data.model === undefined) s.model = next[0] || '';
+      if (data.model !== undefined) s.model = data.model.trim();
+    } else if (data.model !== undefined) {
+      s.model = data.model.trim();
+      // 兼容旧数据：仅传单模型时自动初始化模型列表
+      if (s.models.length === 0 && s.model) s.models = [s.model];
+    }
     // 留空 = 保持已有密钥不变
     if (data.apiKey !== undefined && data.apiKey.trim() !== '') {
       s.apiKey = data.apiKey.trim();
@@ -647,14 +669,16 @@ export class MockNavigationClient {
     return { success: true, message: 'AI 设置已保存' };
   }
 
-  async aiChat(messages: AIMessage[]): Promise<AIChatResponse> {
+  async aiChat(messages: AIMessage[], model?: string): Promise<AIChatResponse> {
     await new Promise((resolve) => setTimeout(resolve, 600));
     if (this.mockAISettings.enabled && this.mockAISettings.apiKey) {
       const last = messages[messages.length - 1];
+      const activeModel =
+        model?.trim() || this.mockAISettings.model || this.mockAISettings.models[0] || 'mock';
       return {
         success: true,
         reply: `（模拟回复）你好，我是 NaviHive 助手。你刚才说的是：「${last?.content || ''}」。当前为开发模拟模式，接入真实 AI 后即可获得智能回答。`,
-        model: this.mockAISettings.model || 'mock',
+        model: activeModel,
       };
     }
     return { success: false, message: 'AI 尚未配置，请先在设置中填写 Base URL 与 API 密钥' };

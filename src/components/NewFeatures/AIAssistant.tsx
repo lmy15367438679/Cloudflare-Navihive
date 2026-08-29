@@ -13,6 +13,7 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
+  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -29,7 +30,7 @@ import { AISettings, AISettingsInput, AIMessage, AIChatResponse } from '../../AP
 interface AIAPI {
   getAISettings(): Promise<AISettings>;
   saveAISettings(data: AISettingsInput): Promise<{ success: boolean; message?: string }>;
-  aiChat(messages: AIMessage[]): Promise<AIChatResponse>;
+  aiChat(messages: AIMessage[], model?: string): Promise<AIChatResponse>;
 }
 
 interface AIAssistantProps {
@@ -61,17 +62,22 @@ export default function AIAssistant({
   const [loading, setLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  // 对话中当前选中的模型（默认 = 设置里的默认模型）
+  const [activeModel, setActiveModel] = useState('');
 
   // ---- 设置表单状态 ----
   const [settings, setSettings] = useState<AISettings>({
     enabled: false,
     baseUrl: '',
     model: '',
+    models: [],
     systemPrompt: '',
     hasKey: false,
     maskedKey: '',
   });
   const [apiKey, setApiKey] = useState('');
+  // 设置面板中「添加模型」的输入框
+  const [modelInput, setModelInput] = useState('');
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -121,7 +127,7 @@ export default function AIAssistant({
     const history = [...messages, userMessage];
     setMessages(history);
     setLoading(true);
-    const res = await api.aiChat(history);
+    const res = await api.aiChat(history, activeModel || undefined);
     if (res.success && res.reply) {
       const reply = res.reply;
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
@@ -131,13 +137,49 @@ export default function AIAssistant({
     setLoading(false);
   };
 
+  // 添加模型到设置列表（去重，第一个为默认模型）
+  const addModel = (name?: string) => {
+    const t = (name ?? modelInput).trim();
+    if (!t) return;
+    if (!settings.models.includes(t)) {
+      const next = [...settings.models, t];
+      // 原本没有模型时，将该模型设为默认
+      setSettings({
+        ...settings,
+        models: next,
+        model: settings.model || next[0] || '',
+      });
+    }
+    setModelInput('');
+  };
+
+  // 从设置列表移除模型；若移除的是默认模型则回退到下一个
+  const removeModel = (name: string) => {
+    const next = settings.models.filter((m) => m !== name);
+    setSettings({
+      ...settings,
+      models: next,
+      model: settings.model === name ? next[0] || '' : settings.model,
+    });
+  };
+
+  // 设置（含多模型列表）加载/变化后，同步对话中选中的模型：
+  // 当前选中仍可用则保留，否则回退到默认模型（列表第一个）
+  useEffect(() => {
+    const candidates = [settings.model, ...settings.models].filter(Boolean);
+    setActiveModel((prev) => {
+      if (prev && candidates.includes(prev)) return prev;
+      return candidates[0] || '';
+    });
+  }, [settings.model, settings.models]);
+
   const handleSaveSettings = async () => {
     setSaving(true);
     setSaveMsg(null);
     const res = await api.saveAISettings({
       enabled: settings.enabled,
       baseUrl: settings.baseUrl,
-      model: settings.model,
+      models: settings.models,
       systemPrompt: settings.systemPrompt,
       // 留空 = 保持服务端已保存的密钥不变
       apiKey: apiKey || undefined,
@@ -279,14 +321,61 @@ export default function AIAssistant({
                   helperText='任意 OpenAI 兼容服务的 Base URL，如 DeepSeek / 硅基流动 / Groq 等'
                 />
 
-                <TextField
-                  label='模型名称'
-                  placeholder='gpt-4o-mini'
-                  fullWidth
-                  size='small'
-                  value={settings.model}
-                  onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-                />
+                <Box>
+                  <Typography
+                    variant='caption'
+                    sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}
+                  >
+                    模型列表：同一 Base URL
+                    下可添加多个模型，第一个为默认模型，访客可在对话中自由切换
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                    <TextField
+                      label='添加模型'
+                      placeholder='gpt-4o-mini'
+                      fullWidth
+                      size='small'
+                      value={modelInput}
+                      onChange={(e) => setModelInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addModel();
+                        }
+                      }}
+                    />
+                    <Button
+                      variant='outlined'
+                      size='small'
+                      sx={{ flexShrink: 0, minWidth: 72 }}
+                      disabled={!modelInput.trim()}
+                      onClick={() => addModel()}
+                    >
+                      添加
+                    </Button>
+                  </Box>
+                  {settings.models.length === 0 ? (
+                    <Typography variant='caption' sx={{ color: 'var(--text-secondary)' }}>
+                      尚未添加模型，请至少添加一个（例如 gpt-4o-mini、deepseek-chat）
+                    </Typography>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {settings.models.map((m, idx) => (
+                        <Chip
+                          key={m}
+                          size='small'
+                          label={idx === 0 ? `${m}（默认）` : m}
+                          onDelete={() => removeModel(m)}
+                          sx={{
+                            bgcolor: 'var(--color-elevated)',
+                            border: '1px solid var(--color-border)',
+                            color: 'var(--text-primary)',
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                </Box>
 
                 <TextField
                   label='API 密钥'
@@ -448,6 +537,39 @@ export default function AIAssistant({
                 borderBottomRightRadius: 'inherit',
               }}
             >
+              {/* 多模型切换：管理员配置了多个模型时，访客可即时切换 */}
+              {settings.models.length > 1 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, px: 0.5 }}>
+                  <Typography
+                    variant='caption'
+                    sx={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                  >
+                    当前模型
+                  </Typography>
+                  <TextField
+                    select
+                    size='small'
+                    value={activeModel}
+                    onChange={(e) => setActiveModel(e.target.value)}
+                    sx={{
+                      minWidth: 200,
+                      bgcolor: 'var(--color-canvas)',
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': { borderColor: 'var(--color-border)' },
+                        '&:hover fieldset': { borderColor: 'var(--color-accent)' },
+                        '&.Mui-focused fieldset': { borderColor: 'var(--color-accent)' },
+                      },
+                    }}
+                  >
+                    {settings.models.map((m) => (
+                      <MenuItem key={m} value={m}>
+                        {m}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+              )}
+
               <TextField
                 fullWidth
                 size='small'
@@ -492,7 +614,7 @@ export default function AIAssistant({
                 variant='caption'
                 sx={{ display: 'block', mt: 0.5, color: 'var(--text-secondary)', px: 0.5 }}
               >
-                回答由 {settings.model || 'AI 模型'} 生成，请自行甄别准确性。
+                回答由 {activeModel || settings.model || 'AI 模型'} 生成，请自行甄别准确性。
               </Typography>
             </Box>
           </>

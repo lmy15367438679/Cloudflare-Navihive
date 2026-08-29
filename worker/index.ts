@@ -1286,14 +1286,33 @@ export default {
 
                 // 获取 AI 设置（密钥明文与密文均不下发，仅返回是否已配置 + 掩码）
                 else if (path === "ai/settings" && method === "GET") {
-                    const [enabled, baseUrl, model, systemPrompt, storedKey] =
+                    const [enabled, baseUrl, model, systemPrompt, storedKey, rawModels] =
                         await Promise.all([
                             api.getConfig("ai.enabled"),
                             api.getConfig("ai.baseUrl"),
                             api.getConfig("ai.model"),
                             api.getConfig("ai.systemPrompt"),
                             api.getConfig("ai.apiKey"),
+                            api.getConfig("ai.models"),
                         ]);
+
+                    // 解析多模型列表（config 中以 JSON 数组字符串存储）
+                    let models: string[] = [];
+                    try {
+                        const parsed = JSON.parse(rawModels || "[]");
+                        if (Array.isArray(parsed)) {
+                            models = parsed
+                                .filter((m): m is string => typeof m === "string")
+                                .map((m) => m.trim())
+                                .filter((m) => m.length > 0);
+                        }
+                    } catch {
+                        models = [];
+                    }
+                    const defaultModel = (model || "").trim();
+                    if (models.length === 0 && defaultModel) {
+                        models = [defaultModel];
+                    }
 
                     // 掩码：仅展示末尾 4 位，用于确认已保存过密钥，不泄露明文
                     let maskedKey = "";
@@ -1308,7 +1327,8 @@ export default {
                         {
                             enabled: enabled === "true",
                             baseUrl: baseUrl || "",
-                            model: model || "",
+                            model: defaultModel || (models[0] || ""),
+                            models,
                             systemPrompt: systemPrompt || "",
                             hasKey: Boolean(storedKey),
                             maskedKey,
@@ -1336,8 +1356,43 @@ export default {
                     if (data.baseUrl !== undefined) {
                         await api.setConfig("ai.baseUrl", data.baseUrl.trim());
                     }
+                    // 模型列表整体覆盖：规范化（去空白 / 去空 / 去重，最多 20 个）
+                    // 未显式传默认模型时，列表第一个作为 ai.model（默认模型）
+                    if (data.models !== undefined && Array.isArray(data.models)) {
+                        const seen = new Set<string>();
+                        const next: string[] = [];
+                        for (const raw of data.models) {
+                            const m = typeof raw === "string" ? raw.trim() : "";
+                            if (m && !seen.has(m) && next.length < 20) {
+                                seen.add(m);
+                                next.push(m);
+                            }
+                        }
+                        await api.setConfig("ai.models", JSON.stringify(next));
+                        if (data.model === undefined) {
+                            await api.setConfig("ai.model", next[0] || "");
+                        }
+                    }
                     if (data.model !== undefined) {
                         await api.setConfig("ai.model", data.model.trim());
+                        // 兼容旧数据：仅传单模型时自动初始化模型列表
+                        if (data.models === undefined) {
+                            const raw = await api.getConfig("ai.models");
+                            let existing: unknown = null;
+                            try {
+                                existing = raw ? JSON.parse(raw) : null;
+                            } catch {
+                                existing = null;
+                            }
+                            const isEmpty =
+                                !Array.isArray(existing) || (existing as unknown[]).length === 0;
+                            if (isEmpty) {
+                                await api.setConfig(
+                                    "ai.models",
+                                    JSON.stringify([data.model.trim()])
+                                );
+                            }
+                        }
                     }
                     if (data.systemPrompt !== undefined) {
                         await api.setConfig(
@@ -1393,6 +1448,7 @@ export default {
 
                     const data = (await validateRequestBody(request)) as {
                         messages?: { role?: string; content?: string }[];
+                        model?: string;
                     };
                     if (
                         !Array.isArray(data.messages) ||
@@ -1406,15 +1462,54 @@ export default {
                         );
                     }
 
-                    const [baseUrl, model, storedKey, customPrompt] = await Promise.all([
+                    const [baseUrl, model, storedKey, customPrompt, rawModels] = await Promise.all([
                         api.getConfig("ai.baseUrl"),
                         api.getConfig("ai.model"),
                         api.getConfig("ai.apiKey"),
                         api.getConfig("ai.systemPrompt"),
+                        api.getConfig("ai.models"),
                     ]);
 
                     const trimmedBaseUrl = (baseUrl || "").trim();
-                    const trimmedModel = (model || "").trim();
+                    const defaultModel = (model || "").trim();
+
+                    // 解析管理员配置的模型白名单（ai.models JSON 数组）
+                    let configuredModels: string[] = [];
+                    try {
+                        const parsed = JSON.parse(rawModels || "[]");
+                        if (Array.isArray(parsed)) {
+                            configuredModels = parsed
+                                .filter((m): m is string => typeof m === "string")
+                                .map((m) => m.trim())
+                                .filter((m) => m.length > 0);
+                        }
+                    } catch {
+                        configuredModels = [];
+                    }
+                    const allowedModels = new Set<string>(
+                        configuredModels.length > 0
+                            ? configuredModels
+                            : defaultModel
+                              ? [defaultModel]
+                              : []
+                    );
+                    if (defaultModel) allowedModels.add(defaultModel);
+
+                    // 会话可选指定模型；仅在管理员配置的白名单内才允许，防止密钥与模型被任意探测
+                    const requestedModel =
+                        typeof data.model === "string" ? data.model.trim() : "";
+                    if (requestedModel && !allowedModels.has(requestedModel)) {
+                        return createJsonResponse(
+                            {
+                                success: false,
+                                message: "请求的模型未被管理员配置，请在对话中选择可用的模型",
+                            },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+                    const trimmedModel = requestedModel || defaultModel;
+
                     if (!trimmedBaseUrl || !trimmedModel || !storedKey) {
                         return createJsonResponse(
                             {
@@ -1694,6 +1789,7 @@ interface AiSettingsInput {
     enabled?: boolean;
     baseUrl?: string;
     model?: string;
+    models?: string[];
     systemPrompt?: string;
     apiKey?: string;
 }
@@ -1888,6 +1984,18 @@ function validateAISettings(data: AiSettingsInput): string[] {
         (typeof data.model !== "string" || data.model.trim().length > 200)
     ) {
         errors.push("model 必须是字符串且不超过 200 字符");
+    }
+    if (data.models !== undefined) {
+        if (!Array.isArray(data.models) || data.models.length > 20) {
+            errors.push("models 必须是数组且最多 20 个模型");
+        } else {
+            for (const m of data.models) {
+                if (typeof m !== "string" || m.trim().length > 200) {
+                    errors.push("models 中的每一项必须是字符串且不超过 200 字符");
+                    break;
+                }
+            }
+        }
     }
     if (data.systemPrompt !== undefined && typeof data.systemPrompt !== "string") {
         errors.push("systemPrompt 必须是字符串");

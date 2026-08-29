@@ -11,8 +11,10 @@ export interface AISettings {
   enabled: boolean;
   /** OpenAI 兼容接口 Base URL，例如 https://api.openai.com/v1 */
   baseUrl: string;
-  /** 模型名称，例如 gpt-4o-mini / deepseek-chat */
+  /** 默认模型名称（模型列表第一个），例如 gpt-4o-mini */
   model: string;
+  /** 多模型列表（同一 Base URL 下，访客可在对话中自由切换） */
+  models: string[];
   /** 自定义系统提示词（可留空，使用内置默认值） */
   systemPrompt: string;
   /** 服务端是否已保存 API 密钥（明文绝不回传） */
@@ -24,7 +26,10 @@ export interface AISettings {
 export interface AISettingsInput {
   enabled?: boolean;
   baseUrl?: string;
+  /** 默认模型名称（可选，未提供时服务端使用模型列表第一个） */
   model?: string;
+  /** 多模型列表；提供时将整体覆盖服务端已保存的列表 */
+  models?: string[];
   systemPrompt?: string;
   /** 留空 / 未提供表示保持已保存的密钥不变 */
   apiKey?: string;
