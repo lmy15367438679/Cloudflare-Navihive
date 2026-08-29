@@ -27,19 +27,21 @@ export default function SortableGroupItem({ id, group }: SortableGroupItemProps)
       style={style}
       sx={{
         p: 3,
-        borderRadius: 4,
-        transition: isDragging ? 'none !important' : 'all 0.3s ease-in-out',
-        border: '1px solid transparent',
-        boxShadow: isDragging ? 8 : 2,
+        borderRadius: 'var(--radius-lg)',
+        // 只过渡会被动画的属性（transform/box-shadow/border-color），避免 transition: all
+        // 在拖拽重排时触发整卡逐帧重绘（数百卡片场景的掉帧来源）
+        transition: isDragging ? 'none !important' : 'transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease',
+        border: '1px solid var(--color-border)',
+        boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
+        bgcolor: 'var(--color-card)',
         cursor: 'grab',
         '&:active': { cursor: 'grabbing' },
         '&:hover': {
-          borderColor: 'divider',
-          boxShadow: 6,
+          borderColor: 'var(--color-border-strong)',
+          boxShadow: 'var(--shadow-md)',
         },
         ...(isDragging && {
-          outline: '2px solid',
-          outlineColor: 'primary.main',
+          outline: '2px solid var(--color-focus-ring)',
           transform: 'none',
           '& *': {
             transition: 'none !important',
@@ -60,7 +62,7 @@ export default function SortableGroupItem({ id, group }: SortableGroupItemProps)
         <DragIndicatorIcon
           sx={{
             mr: 2,
-            color: 'primary.main',
+            color: 'var(--color-accent)',
             opacity: 0.7,
           }}
         />

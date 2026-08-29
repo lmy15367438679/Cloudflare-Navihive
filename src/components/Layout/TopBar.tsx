@@ -49,7 +49,7 @@ export default function TopBar({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: 48,
+        height: 'var(--topbar-height)',
         px: 2,
         bgcolor: 'var(--color-canvas)',
         borderBottom: '1px solid var(--color-border)',
@@ -70,14 +70,14 @@ export default function TopBar({
           variant="h6"
           component="span"
           sx={{
-          fontFamily: 'var(--font-heading)',
-          fontWeight: 600,
-          fontSize: '16px',
-          color: 'var(--text-primary)',
-        }}
-      >
-        {title}
-      </Typography>
+            fontFamily: 'var(--font-heading)',
+            fontWeight: 600,
+            fontSize: '16px',
+            color: 'var(--text-primary)',
+          }}
+        >
+          {title}
+        </Typography>
         {isGroupView && (
           <Tooltip title="回到全部">
             <IconButton

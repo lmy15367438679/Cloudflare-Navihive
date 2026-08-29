@@ -375,7 +375,7 @@ const GroupCard = memo(function GroupCard({
             cursor: 'pointer',
             '&:hover': {
               '& .collapse-icon': {
-                color: 'primary.main',
+                color: 'var(--color-accent)',
               },
             },
           }}

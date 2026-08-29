@@ -119,7 +119,7 @@ export default function AppLayout({
           position: 'relative',
           zIndex: 2,
           ml: 0,
-          minHeight: 'calc(100vh - 48px)',
+          minHeight: 'calc(100vh - var(--topbar-height))',
           // 注意：不给 main 加 will-change——内容含几百张卡片、总高可达上万像素，
           // 对 Chrome 而言是超大型合成层，超出上限会被放弃合成甚至反复重试（有害）。
           // 滚动流畅的关键是消除 hover/动画/backdrop-filter/contain 等逐帧重绘源，

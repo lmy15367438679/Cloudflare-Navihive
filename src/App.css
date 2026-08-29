@@ -64,6 +64,50 @@
   }
 }
 
+/* ===== 交互可访问性（触控） ===== */
+/* 消除移动端点击高亮（视觉噪音），由 :active 状态提供反馈 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 消除双击缩放延迟（不影响双指缩放；触控目标至少 44px 见下） */
+button,
+[role='button'],
+a,
+input,
+select,
+textarea,
+label {
+  touch-action: manipulation;
+}
+
+/* 模态/抽屉滚动不向 body 传播滚动链 */
+.MuiDialog-root .MuiDialog-container,
+.MuiDrawer-root .MuiPaper-root,
+.MuiPopover-root .MuiPaper-root {
+  overscroll-behavior: contain;
+}
+
+/* 拖拽期间禁止文本选择，防止拖拽时选区闪烁 */
+[data-dragging='true'] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ===== 全局交互反馈 ===== */
+/* 键盘焦点可见指示器：统一使用语义焦点环色，仅 :focus-visible 触发（点击不显示环） */
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 链接/按钮按下反馈：轻微缩放，仅交互瞬时创建合成层（遵守顶部性能红线） */
+a,
+button {
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
 /* 可访问性 - 减少动画 */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -76,14 +120,14 @@
   }
 }
 
-/* 自定义滚动条 */
+/* 自定义滚动条（细窄、低对比，与主题令牌一致） */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-canvas);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -95,11 +139,10 @@
   background: var(--color-muted);
 }
 
-/* 焦点可见指示器 */
-*:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+/* Firefox 细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 /* ===== 内置毛玻璃拟态（个性化设置 → 动态效果 → 毛玻璃效果） =====

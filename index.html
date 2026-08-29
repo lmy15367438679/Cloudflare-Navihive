@@ -2,30 +2,51 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#22C55E" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#020617" />
     <meta name="description" content="个人导航站，整理和分享您喜爱的网站链接" />
-    
+
     <!-- 性能优化：预连接外部资源 -->
     <link rel="preconnect" href="https://api.dujin.org" />
     <link rel="preconnect" href="https://proxy.api.030101.xyz" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- 预加载字体样式表，减少字体阻塞渲染时间（display=swap 保证 FOUT 不阻塞） -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="icon" href="/vite.svg" />
     <title>导航站</title>
 
     <style>
       /* 基础重置 */
-      * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+      * {
+        box-sizing: border-box;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* 默认深色配色（与 design-tokens 的 :root 一致），防止 JS 注入前的白屏/色闪 */
+      html {
+        color-scheme: dark;
+      }
 
       body {
         margin: 0;
         padding: 0;
         min-height: 100vh;
-        /* 背景占位色，防止图片加载前的白屏 */
-        background-color: #1a1a1a; 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #020617;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+          Arial, sans-serif;
         overflow-x: hidden;
       }
 
@@ -43,3 +64,4 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+

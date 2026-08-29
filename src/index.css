@@ -1,3 +1,28 @@
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ===== 全局排版基准 ===== */
+html {
+  font-family: var(--font-body);
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 长单词/URL 换行，避免横向溢出破坏布局 */
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 数字列对齐（用于数量徽标、时长等） */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

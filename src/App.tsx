@@ -678,14 +678,17 @@ function App() {
   }, [configs]);
 
   useEffect(() => {
+    const html = document.documentElement;
     if (darkMode) {
-      document.documentElement.classList.add('dark');
+      html.classList.add('dark');
+      html.classList.remove('light');
     } else {
-      document.documentElement.classList.remove('dark');
+      html.classList.remove('dark');
+      html.classList.add('light');
     }
     // 同步浏览器地址栏 theme-color（移动端标签栏/地址栏配色与页面背景一致，消除默认蓝色残留）
     const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = darkMode ? '#020617' : '#F8FAFC';
+    if (themeMeta) themeMeta.content = darkMode ? '#020617' : '#F1F5F9';
   }, [darkMode]);
 
   // ========== 内置毛玻璃拟态（site.glassEffect，默认开启） ==========
