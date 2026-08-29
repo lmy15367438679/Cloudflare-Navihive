@@ -19,7 +19,6 @@ import { sanitizeCSS, isSecureUrl, extractDomain } from './utils/url';
 import { SearchResultItem } from './utils/search';
 import { useAuth } from './hooks/useAuth';
 import { useData } from './hooks/useData';
-import { useMusicPlayer } from './hooks/useMusicPlayer';
 import AppLayout from './components/Layout/AppLayout';
 import Sidebar from './components/Layout/Sidebar';
 import TopBar from './components/Layout/TopBar';
@@ -53,7 +52,6 @@ import {
   CircularProgress,
   Alert,
   Stack,
-  Paper,
   ThemeProvider,
   CssBaseline,
   TextField,
@@ -65,15 +63,11 @@ import {
   IconButton,
   Snackbar,
   InputAdornment,
-  Slider,
   FormControlLabel,
   Switch,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 
 // 根据环境选择使用真实API还是模拟API
 const isDevEnvironment = import.meta.env.DEV;
@@ -265,19 +259,6 @@ function App() {
       await fetchConfigs();
     },
   });
-
-  // ========== 音乐播放器 ==========
-  const {
-    globalMusicPlaying,
-    globalMusicUrl,
-    globalVolume,
-    setGlobalVolume,
-    showMusicPlayer,
-    handlePlayMusic,
-    togglePlayPause,
-    closePlayer,
-    cleanup,
-  } = useMusicPlayer();
 
   // ========== 排序 ==========
   const [sortMode, setSortMode] = useState<SortMode>(SortMode.None);
@@ -661,10 +642,6 @@ function App() {
 
     setSortMode(SortMode.None);
     setCurrentSortingGroupId(null);
-
-    return () => {
-      cleanup();
-    };
   }, []);
 
   useEffect(() => {
@@ -699,15 +676,6 @@ function App() {
     syncAttr('reduce-motion', configs['site.reduceMotion']);
     syncAttr('compact-mode', configs['site.compactMode']);
   }, [configs]);
-
-  // 音乐自动播放：开启后页面加载即尝试播放全局背景音乐（受浏览器自动播放策略限制）
-  const musicAutoPlayEnabled = configs['site.musicAutoPlay'] === 'true';
-  const configuredMusicUrl = configs['site.musicUrl'];
-  useEffect(() => {
-    if (musicAutoPlayEnabled && configuredMusicUrl) {
-      handlePlayMusic(configuredMusicUrl);
-    }
-  }, [musicAutoPlayEnabled, configuredMusicUrl, handlePlayMusic]);
 
   useEffect(() => {
     if (darkMode) {
@@ -1236,65 +1204,11 @@ function App() {
               await api.setConfig(key, value);
               setConfigs((prev) => ({ ...prev, [key]: value }));
             }}
-            onMusicPlay={handlePlayMusic}
             onAutoGroup={handleAutoGroup} // 常规 → 自动分组：按域名归组
             devOptions={devOptions}
             onDevOptionsChange={handleDevOptionChange}
           />
 
-          {/* 全局音乐播放器 */}
-          {showMusicPlayer && globalMusicUrl && (
-            <Paper
-              elevation={0}
-              sx={{
-                position: 'fixed',
-                bottom: 16,
-                right: 16,
-                zIndex: 9999,
-                p: 2,
-                borderRadius: 'var(--radius-lg)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                maxWidth: 320,
-                bgcolor: 'var(--color-elevated)',
-                border: '1px solid var(--color-border)',
-                boxShadow: 'var(--shadow-lg)',
-                // 性能：不用 backdrop-filter（毛玻璃）。backdrop-filter 会让 Chrome
-                // 每帧重采样面板背后整个视口内容 → 滚动持续掉帧。背景已用不透明
-                // --color-elevated，纯色 + 阴影即可表达层级，视觉几乎无差别。
-              }}
-            >
-              <IconButton
-                onClick={togglePlayPause}
-                size='small'
-                aria-label={globalMusicPlaying ? '暂停音乐' : '播放音乐'}
-              >
-                {globalMusicPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-              </IconButton>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant='caption' noWrap>
-                  {globalMusicUrl.split('/').pop() || '背景音乐'}
-                </Typography>
-              </Box>
-              <VolumeUpIcon fontSize='small' />
-              <Slider
-                value={globalVolume}
-                onChange={(_, v) => setGlobalVolume(v as number)}
-                min={0}
-                max={1}
-                step={0.01}
-                sx={{ width: 60 }}
-              />
-              <IconButton
-                onClick={closePlayer}
-                size='small'
-                aria-label='关闭音乐播放器'
-              >
-                <CloseIcon fontSize='small' />
-              </IconButton>
-            </Paper>
-          )}
         </Container>
       </AppLayout>
       {/* 性能监控：由 个性化设置 → 开发者 开关控制（本地 localStorage）；VITE_SHOW_PERF 仅作构建时兜底 */}

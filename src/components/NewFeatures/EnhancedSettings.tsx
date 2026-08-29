@@ -1,8 +1,8 @@
 /**
  * 增强个性化设置组件
- * 音乐播放器、壁纸、动态效果、性能优化
+ * 壁纸、动态效果、性能优化、开发者选项
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -25,14 +25,10 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import WallpaperIcon from '@mui/icons-material/Wallpaper';
 import AnimationIcon from '@mui/icons-material/Animation';
 import SpeedIcon from '@mui/icons-material/Speed';
 import BugReportIcon from '@mui/icons-material/BugReport';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 
 
 interface TabPanelProps {
@@ -61,7 +57,6 @@ interface EnhancedSettingsProps {
   onClose: () => void;
   configs: Record<string, string>;
   onSaveConfig: (key: string, value: string) => Promise<void>;
-  onMusicPlay?: (url: string) => void; // 通知全局播放器播放音乐
   /** 按域名自动分组：返回结果描述字符串（由 App 端执行数据操作并刷新） */
   onAutoGroup?: () => Promise<string>;
   /** 开发者选项（仅本机 localStorage，与 D1 全局配置无关） */
@@ -87,7 +82,6 @@ export default function EnhancedSettings({
   onClose,
   configs,
   onSaveConfig,
-  onMusicPlay,
   onAutoGroup,
   devOptions = { fps: false, log: false },
   onDevOptionsChange,
@@ -96,54 +90,11 @@ export default function EnhancedSettings({
   const [tempConfigs, setTempConfigs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  // 音乐播放器状态
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentMusicUrl, setCurrentMusicUrl] = useState('');
-  const [volume, setVolume] = useState(0.5);
-
   useEffect(() => {
     if (open) {
       setTempConfigs({ ...configs });
-      setCurrentMusicUrl(configs['site.musicUrl'] || '');
     }
   }, [open, configs]);
-
-  // 音乐播放控制 - 通知全局播放器
-  const handlePlayMusic = (url: string) => {
-    if (!url) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-      setIsPlaying(false);
-      setCurrentMusicUrl('');
-      // 通知全局播放器停止
-      if (onMusicPlay) onMusicPlay('');
-      return;
-    }
-
-    // 通知全局播放器播放
-    if (onMusicPlay) {
-      onMusicPlay(url);
-    }
-    
-    // 本地也更新状态用于UI显示
-    setCurrentMusicUrl(url);
-    setIsPlaying(true);
-  };
-
-  const handleVolumeChange = (_: Event, newValue: number | number[]) => {
-    const vol = newValue as number;
-    setVolume(vol);
-    if (audioRef.current) {
-      audioRef.current.volume = vol;
-    }
-  };
-
-  // 关闭对话框时不清理音频，让全局播放器接管
-  // 注意：此组件卸载时不应清理音频，由 App.tsx 中的全局播放器管理
-
 
   const handleConfigChange = (key: string, value: string) => {
     setTempConfigs((prev) => ({ ...prev, [key]: value }));
@@ -216,7 +167,6 @@ export default function EnhancedSettings({
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab icon={<SettingsIcon />} label='常规' />
-        <Tab icon={<MusicNoteIcon />} label='背景音乐' />
         <Tab icon={<WallpaperIcon />} label='壁纸' />
         <Tab icon={<AnimationIcon />} label='动态效果' />
         <Tab icon={<SpeedIcon />} label='性能优化' />
@@ -339,63 +289,8 @@ export default function EnhancedSettings({
           </Box>
         </TabPanel>
 
-        {/* 背景音乐设置 */}
-        <TabPanel value={tabValue} index={1}>
-          <Alert severity='info' sx={{ mb: 2 }}>
-            添加背景音乐，让导航站更有氛围。建议使用轻音乐或白噪音。
-          </Alert>
-
-          <TextField
-            fullWidth
-            size='small'
-            label='自定义音乐URL'
-            placeholder='https://example.com/music.mp3'
-            value={tempConfigs['site.musicUrl'] || ''}
-            onChange={(e) => handleConfigChange('site.musicUrl', e.target.value)}
-            sx={{ mb: 2 }}
-          />
-
-          {currentMusicUrl && (
-            <Paper variant='outlined' sx={{ p: 2, mb: 2 }}>
-              <Box display='flex' alignItems='center' gap={2}>
-                <IconButton
-                  color='primary'
-                  onClick={() => handlePlayMusic(currentMusicUrl)}
-                  aria-label={isPlaying ? '暂停音乐' : '播放音乐'}
-                >
-                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-                </IconButton>
-                <Box flex={1}>
-                  <Typography variant='body2' noWrap>
-                    {currentMusicUrl.split('/').pop() || '未知音乐'}
-                  </Typography>
-                </Box>
-                <VolumeUpIcon fontSize='small' />
-                <Slider
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  sx={{ width: 100 }}
-                />
-              </Box>
-            </Paper>
-          )}
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={tempConfigs['site.musicAutoPlay'] === 'true'}
-                onChange={(e) => handleConfigChange('site.musicAutoPlay', e.target.checked ? 'true' : 'false')}
-              />
-            }
-            label='自动播放音乐（部分浏览器可能阻止自动播放）'
-          />
-        </TabPanel>
-
         {/* 壁纸设置 */}
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={1}>
           <Alert severity='info' sx={{ mb: 2 }}>
             选择或自定义背景壁纸，让导航站更具个性。
           </Alert>
@@ -485,7 +380,7 @@ export default function EnhancedSettings({
         </TabPanel>
 
         {/* 动态效果设置 */}
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={2}>
           <Alert severity='info' sx={{ mb: 2 }}>
             添加动态效果提升视觉体验。注意：过多动画可能影响性能。
           </Alert>
@@ -565,7 +460,7 @@ export default function EnhancedSettings({
         </TabPanel>
 
         {/* 性能优化设置 */}
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={3}>
           <Alert severity='info' sx={{ mb: 2 }}>
             优化导航站的加载速度和运行性能，减少资源消耗。
           </Alert>
@@ -645,7 +540,7 @@ export default function EnhancedSettings({
         </TabPanel>
 
         {/* 开发者选项（仅本机 localStorage，与全局 D1 配置无关） */}
-        <TabPanel value={tabValue} index={5}>
+        <TabPanel value={tabValue} index={4}>
           <Alert severity='warning' sx={{ mb: 2 }}>
             开发者选项仅作用于当前浏览器（localStorage），用于诊断问题，不会保存到网站全局配置，也不影响其他访客。
           </Alert>
