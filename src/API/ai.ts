@@ -56,6 +56,17 @@ export interface AIChatResponse {
   message?: string;
 }
 
+/** 流式对话事件类型：Worker SSE 以 meta/skill/delta/done/error 逐段下发，客户端据此增量渲染 */
+export type AIChatEventType = 'meta' | 'skill' | 'delta' | 'done' | 'error';
+
+/** 单条流式事件：前端增量渲染 / 技能徽标 / 错误提示的统一契约（与 Worker SSE 协议对齐） */
+export type AIChatEvent =
+  | { type: 'meta'; model: string; skillsEnabled: boolean }
+  | { type: 'skill'; name: string }
+  | { type: 'delta'; content: string }
+  | { type: 'done'; model: string; skillsUsed: string[] }
+  | { type: 'error'; message: string };
+
 /** 内置默认系统提示词：让 AI 作为本导航站的管家式助手（含技能说明与省 token 约束） */
 export const DEFAULT_AI_SYSTEM_PROMPT =
   '你是「NaviHive 导航站」的智能管家助手。你的职责：帮助用户使用本站（搜索、收藏、分组管理）；基于本站站点库推荐有价值的网站与工具并给出简短理由；解答导航与效率工具相关问题。\n' +

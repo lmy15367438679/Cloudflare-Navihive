@@ -7,7 +7,26 @@ import {
   GroupWithSites,
   LinkCheckResult,
 } from './http';
-import { AIMessage, AISettings, AISettingsInput, AIChatResponse } from './ai';
+import { AIMessage, AISettings, AISettingsInput, AIChatResponse, AIChatEvent } from './ai';
+
+/** 解析单条 SSE 帧："event:xxx\ndata:{json}\n"；返回 null 表示注释行 / 心跳 / 流结束标记。 */
+function parseSSEChunk(block: string): { event: string; data: unknown } | null {
+  let event = '';
+  const dataLines: string[] = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith(':')) continue; // SSE 注释行
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5));
+  }
+  if (dataLines.length === 0) return null;
+  const raw = dataLines.join('\n');
+  if (raw.trim() === '[DONE]') return null; // 上游流结束标记，业务层忽略
+  try {
+    return { event, data: JSON.parse(raw) as unknown };
+  } catch {
+    return { event, data: raw };
+  }
+}
 
 export class NavigationClient {
   private baseUrl: string;
@@ -340,13 +359,19 @@ export class NavigationClient {
     });
   }
 
-  // 发送对话消息（Worker 解密密钥后调用 OpenAI 兼容接口，密钥不经过浏览器）
-  // model 可选：不传则使用服务端默认模型（settings.model），传则切换使用指定模型
+  // 发送对话消息（流式 SSE）：Worker 实时下发 meta/skill/delta/done/error 事件，
+  // 通过 onEvent 回调逐事件增量渲染；Promise 在流结束后 resolve 出完整回复。
+  // model 可选：不传则使用服务端默认模型（settings.model），传则切换使用指定模型。
   async aiChat(
     messages: AIMessage[],
     model?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onEvent?: (event: AIChatEvent) => void
   ): Promise<AIChatResponse> {
+    let contentBuffer = '';
+    let skillsUsed: string[] = [];
+    let streamModel: string | undefined;
+    let streamError: string | null = null;
     try {
       const response = await fetch(`${this.baseUrl}/ai/chat`, {
         method: 'POST',
@@ -356,14 +381,89 @@ export class NavigationClient {
         // 仅上传最近 20 条，与 Worker 侧一致，减少请求体与 token 消耗
         body: JSON.stringify({ messages: messages.slice(-20), model: model || undefined }),
       });
-      const data = (await response.json().catch(() => null)) as AIChatResponse | null;
       if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as AIChatResponse | null;
         return { success: false, message: data?.message || `AI 请求失败（${response.status}）` };
       }
-      return data ?? { success: false, message: 'AI 响应为空' };
+      // 兼容兜底：旧版 Worker 或网关吞掉流式标志时，按完整 JSON 解析为单条回复
+      const contentType = response.headers.get('Content-Type') || '';
+      if (contentType.includes('application/json')) {
+        const data = (await response.json().catch(() => null)) as AIChatResponse | null;
+        return data ?? { success: false, message: 'AI 响应为空' };
+      }
+      const body = response.body;
+      if (!body) return { success: false, message: 'AI 响应为空' };
+
+      const reader = body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let finished = false;
+      for (;;) {
+        const result = await reader.read();
+        if (result.done) {
+          buffer += decoder.decode();
+        } else {
+          buffer += decoder.decode(result.value, { stream: true });
+        }
+        let sep = buffer.indexOf('\n\n');
+        while (sep !== -1) {
+          const block = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          const frame = parseSSEChunk(block);
+          if (frame) {
+            const { event, data } = frame;
+            if (event === 'meta') {
+              const d = data as { model?: string; skillsEnabled?: boolean };
+              if (typeof d?.model === 'string') streamModel = d.model;
+              onEvent?.({
+                type: 'meta',
+                model: streamModel ?? '',
+                skillsEnabled: Boolean(d?.skillsEnabled),
+              });
+            } else if (event === 'skill') {
+              const name = (data as { name?: string })?.name;
+              if (typeof name === 'string' && name) {
+                if (!skillsUsed.includes(name)) skillsUsed.push(name);
+                onEvent?.({ type: 'skill', name });
+              }
+            } else if (event === 'delta') {
+              const content = (data as { content?: string })?.content;
+              if (typeof content === 'string' && content) {
+                contentBuffer += content;
+                onEvent?.({ type: 'delta', content });
+              }
+            } else if (event === 'done') {
+              const d = data as { model?: string; skillsUsed?: string[] };
+              if (typeof d?.model === 'string') streamModel = d.model;
+              if (Array.isArray(d?.skillsUsed)) skillsUsed = d.skillsUsed;
+              onEvent?.({ type: 'done', model: streamModel ?? '', skillsUsed: [...skillsUsed] });
+              finished = true;
+              break;
+            } else if (event === 'error') {
+              streamError = (data as { message?: string })?.message || 'AI 请求失败，请稍后重试';
+              onEvent?.({ type: 'error', message: streamError });
+              finished = true;
+              break;
+            }
+          }
+          sep = buffer.indexOf('\n\n');
+        }
+        if (result.done || finished) break;
+      }
+      // 已收完整流（done/error 或 EOF），显式取消底层读取以释放连接
+      void reader.cancel().catch(() => undefined);
+
+      if (streamError) return { success: false, message: streamError };
+      if (contentBuffer) {
+        return { success: true, reply: contentBuffer, model: streamModel, skillsUsed };
+      }
+      return { success: false, message: 'AI 响应为空' };
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        return { success: false, message: '已停止生成' };
+        // 用户主动停止生成：已流式收到的内容依然保留，避免"白屏"式中断
+        return contentBuffer
+          ? { success: true, reply: contentBuffer, model: streamModel, skillsUsed }
+          : { success: false, message: '已停止生成' };
       }
       return {
         success: false,

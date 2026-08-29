@@ -7,7 +7,7 @@ import {
   GroupWithSites,
   LinkCheckResult,
 } from './http';
-import { AIMessage, AISettings, AISettingsInput, AIChatResponse } from './ai';
+import { AIMessage, AISettings, AISettingsInput, AIChatResponse, AIChatEvent } from './ai';
 
 // 模拟数据
 const mockGroups: Group[] = [
@@ -730,9 +730,10 @@ export class MockNavigationClient {
   async aiChat(
     messages: AIMessage[],
     model?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onEvent?: (event: AIChatEvent) => void
   ): Promise<AIChatResponse> {
-    if (!(await this.sleepOrAborted(600, signal))) {
+    if (!(await this.sleepOrAborted(180, signal))) {
       return { success: false, message: '已停止生成' };
     }
     if (!this.mockAISettings.enabled || !this.mockAISettings.apiKey) {
@@ -743,53 +744,67 @@ export class MockNavigationClient {
     const last = messages[messages.length - 1];
     const userText = (last?.content ?? '').trim();
 
+    // 先按原有各分支口径算出完整回复与技能名，再以 SSE 事件形式分片流式发射
+    let reply: string;
+    let skillsUsed: string[] = [];
     // 技能总开关关闭：走「站点库摘要注入」兜底（与真实 worker 的知识注入路径一致）
     if (!this.mockAISettings.toolsEnabled) {
-      return {
-        success: true,
-        reply: this.buildFallbackReply(userText, false),
-        model: activeModel,
-      };
+      reply = this.buildFallbackReply(userText, false);
     }
-
     // 模拟上游不支持函数调用：降级为「无工具 + 摘要注入」
-    if (this.mockToolsUnsupported) {
-      return {
-        success: true,
-        reply: this.buildFallbackReply(userText, true),
-        model: activeModel,
-        skillsUsed: [],
-      };
+    else if (this.mockToolsUnsupported) {
+      reply = this.buildFallbackReply(userText, true);
+    } else {
+      const skill = this.detectSkill(userText, this.mockAISettings.extSkillsEnabled);
+      if (skill) {
+        const isExtSkill = [
+          'search_academic_literature',
+          'recommend_next_actions',
+          'teach_concept',
+        ].includes(skill.name);
+        reply = isExtSkill
+          ? `（模拟技能调用：${skill.name}）\n${this.runExtMockSkill(skill.name, skill.args)}`
+          : `（模拟技能调用：${skill.name}）\n${this.renderSkillReply(
+              skill.name,
+              this.runMockSkill(skill.name, skill.args),
+              skill.args
+            )}`;
+        skillsUsed = [skill.name];
+      } else {
+        // 普通闲聊：保持原有模拟回复
+        reply = `（模拟回复）你好，我是 NaviHive 助手。你刚才说的是：「${userText}」。当前为开发模拟模式，接入真实 AI 后即可获得智能回答。`;
+      }
     }
 
-    const skill = this.detectSkill(userText, this.mockAISettings.extSkillsEnabled);
-    if (skill) {
-      const isExtSkill = [
-        'search_academic_literature',
-        'recommend_next_actions',
-        'teach_concept',
-      ].includes(skill.name);
-      const reply = isExtSkill
-        ? `（模拟技能调用：${skill.name}）\n${this.runExtMockSkill(skill.name, skill.args)}`
-        : `（模拟技能调用：${skill.name}）\n${this.renderSkillReply(
-            skill.name,
-            this.runMockSkill(skill.name, skill.args),
-            skill.args
-          )}`;
-      return {
-        success: true,
-        reply,
-        model: activeModel,
-        skillsUsed: [skill.name],
-      };
-    }
-
-    // 普通闲聊：保持原有模拟回复
-    return {
-      success: true,
-      reply: `（模拟回复）你好，我是 NaviHive 助手。你刚才说的是：「${userText}」。当前为开发模拟模式，接入真实 AI 后即可获得智能回答。`,
+    // —— 按 SSE 事件协议发射：meta -> skill（逐个）-> delta（分片）-> done ——
+    onEvent?.({
+      type: 'meta',
       model: activeModel,
-    };
+      skillsEnabled: this.mockAISettings.toolsEnabled,
+    });
+    for (const name of skillsUsed) onEvent?.({ type: 'skill', name });
+    const aborted = await this.streamReply(reply, onEvent, signal);
+    if (aborted) return { success: false, message: '已停止生成' };
+    onEvent?.({ type: 'done', model: activeModel, skillsUsed: [...skillsUsed] });
+    return { success: true, reply, model: activeModel, skillsUsed };
+  }
+
+  /** 将整段回复拆成小片 delta 模拟实时打字流；返回 true 表示对话已被中止 */
+  private async streamReply(
+    text: string,
+    onEvent?: (event: AIChatEvent) => void,
+    signal?: AbortSignal
+  ): Promise<boolean> {
+    if (!onEvent || text.length === 0) return false;
+    // 分片粒度：总片数 ≈ 24，每片间隔 30ms，既能看出滚动效果又不会拖慢本地调试
+    const step = Math.max(6, Math.ceil(text.length / 24));
+    const chunks: string[] = [];
+    for (let i = 0; i < text.length; i += step) chunks.push(text.slice(i, i + step));
+    for (const chunk of chunks) {
+      if (!(await this.sleepOrAborted(30, signal))) return true;
+      onEvent?.({ type: 'delta', content: chunk });
+    }
+    return false;
   }
   /** 规则式意图识别：从用户提问中判断应调用的技能（模拟真实模型的 function_calls） */
   private detectSkill(

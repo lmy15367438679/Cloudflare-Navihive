@@ -26,13 +26,18 @@ import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import SendIcon from '@mui/icons-material/Send';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StopIcon from '@mui/icons-material/Stop';
-import { AISettings, AISettingsInput, AIMessage, AIChatResponse } from '../../API/ai';
+import { AISettings, AISettingsInput, AIMessage, AIChatResponse, AIChatEvent } from '../../API/ai';
 
 // 最小接口：NavigationClient（真实 Worker）与 MockNavigationClient（本地模拟）均满足
 interface AIAPI {
   getAISettings(): Promise<AISettings>;
   saveAISettings(data: AISettingsInput): Promise<{ success: boolean; message?: string }>;
-  aiChat(messages: AIMessage[], model?: string, signal?: AbortSignal): Promise<AIChatResponse>;
+  aiChat(
+    messages: AIMessage[],
+    model?: string,
+    signal?: AbortSignal,
+    onEvent?: (event: AIChatEvent) => void
+  ): Promise<AIChatResponse>;
 }
 
 interface AIAssistantProps {
@@ -69,6 +74,8 @@ export default function AIAssistant({
   const bottomRef = useRef<HTMLDivElement | null>(null);
   // 对话中当前选中的模型（默认 = 设置里的默认模型）
   const [activeModel, setActiveModel] = useState('');
+  // 每条助手回复的附加信息（下标 -> 调用过的技能名），用于气泡旁的技能徽标
+  const [replyMeta, setReplyMeta] = useState<Record<number, { skills: string[] }>>({});
 
   // ---- 设置表单状态 ----
   const [settings, setSettings] = useState<AISettings>({
@@ -173,13 +180,51 @@ export default function AIAssistant({
     setLoading(true);
     const controller = new AbortController();
     abortRef.current = controller;
+    // 流式回答的助手消息下标（= 加上本条用户消息后的长度），delta 事件直接更新该气泡
+    const replyIndex = history.length;
+    let streamedContent = '';
+    let liveSkills = [] as string[];
     try {
-      const res = await api.aiChat(history, activeModel || undefined, controller.signal);
-      if (res.success && res.reply) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: res.reply as string }]);
+      const { success, reply, message, skillsUsed } = await api.aiChat(
+        history,
+        activeModel || undefined,
+        controller.signal,
+        (event) => {
+          if (event.type === 'delta') {
+            streamedContent += event.content;
+            setMessages((prev) =>
+              prev.length <= replyIndex
+                ? [...prev, { role: 'assistant', content: streamedContent }]
+                : prev.map((m, i) =>
+                    i === replyIndex && m.role === 'assistant'
+                      ? { ...m, content: streamedContent }
+                      : m
+                  )
+            );
+          } else if (event.type === 'skill') {
+            if (!liveSkills.includes(event.name)) {
+              liveSkills = [...liveSkills, event.name];
+              setReplyMeta((prev) => ({ ...prev, [replyIndex]: { skills: liveSkills } }));
+            }
+          }
+          // meta / done / error 事件：done 由 resolve 返回值沉淀，error 由 message 兜底
+        }
+      );
+      if (success && reply) {
+        // 流式期间已增量渲染，这里确保最终完整内容落位（含中途被用户停止时的部分内容）
+        setMessages((prev) =>
+          prev.length <= replyIndex
+            ? [...prev, { role: 'assistant', content: reply }]
+            : prev.map((m, i) =>
+                i === replyIndex && m.role === 'assistant' ? { ...m, content: reply } : m
+              )
+        );
+        if (skillsUsed?.length) {
+          setReplyMeta((prev) => ({ ...prev, [replyIndex]: { skills: [...skillsUsed] } }));
+        }
       } else {
         setChatError(
-          controller.signal.aborted ? '已停止生成' : res.message || 'AI 请求失败，请稍后重试'
+          controller.signal.aborted ? '已停止生成' : message || 'AI 请求失败，请稍后重试'
         );
       }
     } catch {
@@ -201,6 +246,7 @@ export default function AIAssistant({
     abortRef.current?.abort();
     abortRef.current = null;
     setMessages([]);
+    setReplyMeta({});
     setChatError(null);
     setLoading(false);
   };
@@ -602,35 +648,63 @@ export default function AIAssistant({
                   </Stack>
                 </Box>
               ) : (
-                messages.map((m, idx) => (
-                  <Box
-                    key={idx}
-                    sx={{
-                      display: 'flex',
-                      justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-                      mb: 1,
-                    }}
-                  >
+                messages.map((m, idx) => {
+                  const skills = m.role === 'assistant' ? (replyMeta[idx]?.skills ?? []) : [];
+                  return (
                     <Box
+                      key={idx}
                       sx={{
-                        maxWidth: '82%',
-                        px: 1.5,
-                        py: 1,
-                        borderRadius: 'var(--radius-md)',
-                        bgcolor:
-                          m.role === 'user' ? 'var(--color-accent)' : 'var(--color-elevated)',
-                        color: m.role === 'user' ? 'var(--text-on-accent)' : 'var(--text-primary)',
-                        border: m.role === 'user' ? 'none' : '1px solid var(--color-border)',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        fontSize: '14px',
-                        lineHeight: 1.6,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: m.role === 'user' ? 'flex-end' : 'flex-start',
+                        mb: 1,
                       }}
                     >
-                      {m.content}
+                      {skills.length > 0 && (
+                        <Stack
+                          direction='row'
+                          spacing={0.5}
+                          sx={{ flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}
+                        >
+                          {skills.map((name) => (
+                            <Chip
+                              key={name}
+                              size='small'
+                              label={`已调用技能：${name}`}
+                              sx={{
+                                height: 20,
+                                fontSize: '11px',
+                                bgcolor: 'var(--color-canvas)',
+                                border: '1px solid var(--color-border)',
+                                color: 'var(--text-secondary)',
+                                '& .MuiChip-label': { px: 1 },
+                              }}
+                            />
+                          ))}
+                        </Stack>
+                      )}
+                      <Box
+                        sx={{
+                          maxWidth: '82%',
+                          px: 1.5,
+                          py: 1,
+                          borderRadius: 'var(--radius-md)',
+                          bgcolor:
+                            m.role === 'user' ? 'var(--color-accent)' : 'var(--color-elevated)',
+                          color:
+                            m.role === 'user' ? 'var(--text-on-accent)' : 'var(--text-primary)',
+                          border: m.role === 'user' ? 'none' : '1px solid var(--color-border)',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          fontSize: '14px',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {m.content}
+                      </Box>
                     </Box>
-                  </Box>
-                ))
+                  );
+                })
               )}
               {loading && (
                 <Box

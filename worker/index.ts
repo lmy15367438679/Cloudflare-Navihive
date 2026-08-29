@@ -1617,251 +1617,386 @@ export default {
 
                     const endpoint = trimmedBaseUrl.replace(/\/+$/, "") + "/chat/completions";
 
+                    // ============ SSE 流式返回：逐 token 下发 + 技能（函数调用）服务端编排 ============
+                    // 处理角度（三个关键转变，完全兼容现有 skills）：
+                    //  ① stream:true——首 token 到达即开始向下推送，长回答不再"憋到全部生成完"；
+                    //  ② 空闲超时替代固定总超时——每收到一个 chunk 重置计时器，慢但仍在出字的模型
+                    //     永不超时，只有真正卡死（30s 无数据）才中止并立刻回传 error 事件，杜绝"不响应"；
+                    //  ③ delta.tool_calls 增量拼装→executeAISkill 并行执行→tool 结果回传下一轮，
+                    //     技能定义、执行与"上游不支持函数=降级注入"逻辑全部复用，零改动。
                     try {
+                        const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+                        const writer = writable.getWriter();
+                        const encoder = new TextEncoder();
+                        // 统一 SSE 事件出口：meta / skill / delta / done / error，客户端按事件分流渲染
+                        const send = async (event: string, data: unknown) => {
+                            try {
+                                await writer.write(
+                                    encoder.encode(`event:${event}\ndata:${JSON.stringify(data)}\n\n`)
+                                );
+                            } catch {
+                                /* 客户端已断开，忽略写入失败 */
+                            }
+                        };
+
                         const controller = new AbortController();
-                        // 访客点击「停止」时（前端 abort fetch）联动中止上游请求，避免无效等待与配额浪费
                         const onClientAbort = () => controller.abort();
                         request.signal.addEventListener("abort", onClientAbort, { once: true });
-                        // 技能调用可能产生多轮上游请求，单次对话总超时 90s
-                        const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-                        // ---- AI 技能（函数调用）循环：最多 MAX_TOOL_ROUNDS 轮（2 轮：调技能→作答）----
                         const MAX_TOOL_ROUNDS = 2;
                         let toolsActive = toolsEnabled;
                         const usedSkills: string[] = [];
-                        let finalReply: string | null = null;
 
-                        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-                            // 访客已点「停止」：立即退出，不再发起新一轮上游调用
-                            if (controller.signal.aborted) break;
-                            const body: ChatCompletionBody = {
-                                model: trimmedModel,
-                                messages: messagesForLLM,
-                                temperature: 0.7,
-                                stream: false,
-                            };
-                            if (toolsActive && !skipSkillOneShot) {
-                                body.tools = extSkillsEnabled
-                                    ? [...AI_SKILL_TOOLS, ...EXT_AI_SKILL_TOOLS]
-                                    : AI_SKILL_TOOLS;
-                                body.tool_choice = "auto";
-                            }
-
-                            log({
-                                level: "info",
-                                message: `AI 对话请求（第 ${round + 1} 轮${toolsActive ? (extSkillsEnabled ? "，启用基础+扩展技能" : "，启用基础技能") : "，无技能模式"}）`,
-                                path: "/api/ai/chat",
-                                method: "POST",
-                                details: {
-                                    model: trimmedModel,
-                                    messageCount: messagesForLLM.length,
-                                    skillsSkipped: skipSkillOneShot,
-                                },
-                            });
-
-                            const upstream = await fetchWithTimeout(
-                                endpoint,
-                                {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                        Authorization: `Bearer ${secretKey}`,
+                        // 执行本轮技能调用并回传结果；向客户端上抛 skill 事件（前端据此显示"已查寻"徽标）
+                        const runToolCalls = async (
+                            toolCalls: {
+                                id: string;
+                                type: string;
+                                function: { name: string; arguments: string };
+                            }[],
+                            round: number
+                        ) => {
+                            messagesForLLM.push({
+                                role: "assistant",
+                                content: "",
+                                tool_calls: toolCalls.map((tc, idx) => ({
+                                    id: tc.id || `call_${round}_${idx}`,
+                                    type: "function",
+                                    function: {
+                                        name: tc.function.name || "",
+                                        arguments: tc.function.arguments || "",
                                     },
-                                    body: JSON.stringify(body),
-                                },
-                                LLM_ROUND_TIMEOUT_MS
-                            );
-                        clearTimeout(timeoutId);
-
-                        if (!upstream.ok) {
-                                let detail = "";
-                                try {
-                                    const errBody = (await upstream.json()) as {
-                                        error?: { message?: string };
-                                    };
-                                    detail = errBody.error?.message || "";
-                                } catch {
-                                    detail = (await upstream.text()).slice(0, 300);
-                                }
-                                // 兼容性：上游不支持函数调用时，自动降级为「无工具 + 站点库摘要注入」
-                                if (toolsActive && isToolsUnsupportedError(upstream.status, detail)) {
+                                })),
+                            });
+                            // 并行执行多个技能（互不依赖），整体耗时取最大值；结果按下标顺序回传
+                            const toolOutcomes = await Promise.all(
+                                toolCalls.map(async (tc, idx) => {
+                                    const name = tc.function.name || "";
+                                    let result: string;
+                                    try {
+                                        let args: Record<string, unknown> = {};
+                                        try {
+                                            const parsed = JSON.parse(
+                                                tc.function.arguments || "{}"
+                                            );
+                                            if (parsed && typeof parsed === "object") {
+                                                args = parsed as Record<string, unknown>;
+                                            }
+                                        } catch {
+                                            args = {};
+                                        }
+                                        result = await executeAISkill(env, name, args);
+                                        if (!usedSkills.includes(name)) usedSkills.push(name);
+                                    } catch (error) {
+                                        result = `技能「${name}」执行失败：${
+                                            error instanceof Error ? error.message : "未知错误"
+                                        }`;
+                                    }
                                     log({
-                                        level: "warn",
-                                        message: "上游接口不支持函数调用技能，已自动降级为站点库摘要模式",
+                                        level: "info",
+                                        message: `AI 技能执行: ${name}`,
                                         path: "/api/ai/chat",
                                         method: "POST",
-                                        details: detail,
+                                        details: (result || "").slice(0, 200),
                                     });
-                                    toolsActive = false;
-                                    const latestUser = [...filtered]
-                                        .reverse()
-                                        .find((m) => m.role === "user");
-                                    if (latestUser) {
-                                        const knowledge = await buildKnowledgeContext(env, latestUser.content);
-                                        if (knowledge) {
-                                            systemPromptFinal += knowledge;
-                                            messagesForLLM = [
-                                                { role: "system", content: systemPromptFinal },
-                                                ...historyTrim.history,
-                                            ];
-                                        }
-                                    }
-                                    continue;
-                                }
-                                log({
-                                    level: "warn",
-                                    message: `AI 上游接口返回错误: ${upstream.status}`,
-                                    path: "/api/ai/chat",
-                                    method: "POST",
-                                    details: detail,
-                                });
-                                clearTimeout(timeoutId);
-                                return createJsonResponse(
-                                    {
-                                        success: false,
-                                        message:
-                                            `AI 服务返回错误（${upstream.status}）：` +
-                                            (detail || "无详细信息"),
-                                    },
-                                    request,
-                                    { status: upstream.status >= 500 ? 502 : 400 }
-                                );
-                            }
-
-                        const upstreamJson = (await upstream.json()) as {
-                                choices?: {
-                                    message?: {
-                                        content?: string;
-                                        tool_calls?: {
-                                            id?: string;
-                                            type?: string;
-                                            function?: { name?: string; arguments?: string };
-                                        }[];
+                                    return {
+                                        toolCallId: tc.id || `call_${round}_${idx}`,
+                                        name,
+                                        result,
                                     };
-                                }[];
-                            };
-                            const assistantMessage = upstreamJson.choices?.[0]?.message;
-                            const toolCalls = (assistantMessage?.tool_calls || []).filter(
-                                (tc) =>
-                                    tc?.function?.name && typeof tc.function.arguments === "string"
+                                })
                             );
-                            const reply = assistantMessage?.content?.trim() || "";
-
-                            // 有技能调用：逐个执行并把结果回传给模型，进入下一轮
-                            if (toolsActive && toolCalls.length > 0) {
+                            for (const item of toolOutcomes) {
                                 messagesForLLM.push({
-                                    role: "assistant",
-                                    content: assistantMessage?.content || "",
-                                    tool_calls: toolCalls.map((tc, idx) => ({
-                                        id: tc.id || `call_${round}_${idx}`,
-                                        type: "function",
-                                        function: {
-                                            name: tc.function!.name!,
-                                            arguments: tc.function!.arguments!,
-                                        },
-                                    })),
+                                    role: "tool",
+                                    tool_call_id: item.toolCallId,
+                                    content: item.result,
                                 });
-                                // 并行执行同一轮的多个技能（互不依赖），整体耗时取最大值而非累加；
-                                // 结果按下标顺序回传，保证 tool 消息与 tool_calls 一一对应
-                                const toolOutcomes = await Promise.all(
-                                    toolCalls.map(async (tc, idx) => {
-                                        const name = tc.function!.name!;
-                                        let result: string;
+                            }
+                            for (const name of toolOutcomes.map((o) => o.name)) {
+                                await send("skill", { name });
+                            }
+                        };
+
+                        // 流式主循环在后台推进，函数立刻返回 SSE 流：首字等待 ≈ 上游首 token 延迟
+                        void (async () => {
+                            try {
+                                await send("meta", {
+                                    model: trimmedModel,
+                                    skillsEnabled: toolsEnabled,
+                                });
+                                let doneSent = false;
+
+                                for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+                                    // 访客已点「停止」：立即退出，不再发起新一轮上游调用
+                                    if (controller.signal.aborted) break;
+                                    const body: ChatCompletionBody = {
+                                        model: trimmedModel,
+                                        messages: messagesForLLM,
+                                        temperature: 0.7,
+                                        stream: true,
+                                    };
+                                    if (toolsActive && !skipSkillOneShot) {
+                                        body.tools = extSkillsEnabled
+                                            ? [...AI_SKILL_TOOLS, ...EXT_AI_SKILL_TOOLS]
+                                            : AI_SKILL_TOOLS;
+                                        body.tool_choice = "auto";
+                                    }
+
+                                    log({
+                                        level: "info",
+                                        message: `AI 对话请求（第 ${round + 1} 轮${toolsActive ? (extSkillsEnabled ? "，启用基础+扩展技能" : "，启用基础技能") : "，无技能模式"}，流式）`,
+                                        path: "/api/ai/chat",
+                                        method: "POST",
+                                        details: {
+                                            model: trimmedModel,
+                                            messageCount: messagesForLLM.length,
+                                            skillsSkipped: skipSkillOneShot,
+                                        },
+                                    });
+
+                                    const upstream = await fetchWithIdleTimeout(
+                                        endpoint,
+                                        {
+                                            method: "POST",
+                                            headers: {
+                                                "Content-Type": "application/json",
+                                                Authorization: `Bearer ${secretKey}`,
+                                            },
+                                            body: JSON.stringify(body),
+                                            signal: controller.signal,
+                                        },
+                                        STREAM_IDLE_TIMEOUT_MS
+                                    );
+
+                                    if (!upstream.ok) {
+                                        let detail = "";
                                         try {
-                                            let args: Record<string, unknown> = {};
-                                            try {
-                                                const parsed = JSON.parse(
-                                                    tc.function?.arguments || "{}"
+                                            const errBody = (await upstream.json()) as {
+                                                error?: { message?: string };
+                                            };
+                                            detail = errBody.error?.message || "";
+                                        } catch {
+                                            detail = (await upstream.text()).slice(0, 300);
+                                        }
+                                        // 兼容性：上游不支持函数调用时，自动降级为「无工具 + 站点库摘要注入」
+                                        if (
+                                            toolsActive &&
+                                            isToolsUnsupportedError(upstream.status, detail)
+                                        ) {
+                                            log({
+                                                level: "warn",
+                                                message:
+                                                    "上游接口不支持函数调用技能，已自动降级为站点库摘要模式",
+                                                path: "/api/ai/chat",
+                                                method: "POST",
+                                                details: detail,
+                                            });
+                                            toolsActive = false;
+                                            const latestUser = [...filtered]
+                                                .reverse()
+                                                .find((m) => m.role === "user");
+                                            if (latestUser) {
+                                                const knowledge = await buildKnowledgeContext(
+                                                    env,
+                                                    latestUser.content
                                                 );
-                                                if (parsed && typeof parsed === "object") {
-                                                    args = parsed as Record<string, unknown>;
+                                                if (knowledge) {
+                                                    systemPromptFinal += knowledge;
+                                                    messagesForLLM = [
+                                                        { role: "system", content: systemPromptFinal },
+                                                        ...historyTrim.history,
+                                                    ];
                                                 }
-                                            } catch {
-                                                args = {};
                                             }
-                                            result = await executeAISkill(env, name, args);
-                                            if (!usedSkills.includes(name)) usedSkills.push(name);
-                                        } catch (error) {
-                                            result = `技能「${name}」执行失败：${
-                                                error instanceof Error ? error.message : "未知错误"
-                                            }`;
+                                            continue;
                                         }
                                         log({
-                                            level: "info",
-                                            message: `AI 技能执行: ${name}`,
+                                            level: "warn",
+                                            message: `AI 上游接口返回错误: ${upstream.status}`,
                                             path: "/api/ai/chat",
                                             method: "POST",
-                                            details: (result || "").slice(0, 200),
+                                            details: detail,
                                         });
-                                        return {
-                                            toolCallId: tc.id || `call_${round}_${idx}`,
-                                            result,
+                                        await send("error", {
+                                            message: `AI 服务返回错误（${upstream.status}）：${
+                                                detail || "无详细信息"
+                                            }`,
+                                        });
+                                        break;
+                                    }
+
+                                    // ---- 流式解析：delta.content 实时转发；delta.tool_calls 增量拼装 ----
+                                    const assembledToolCalls: {
+                                        id: string;
+                                        type: string;
+                                        function: { name: string; arguments: string };
+                                    }[] = [];
+                                    let streamedContent = false;
+
+                                    // 兼容性：个别上游/网关会重写 Content-Type 或忽略 stream=true。
+                                    // 非 SSE 则读取完整 JSON 一次性作为单条 delta 下发，杜绝"无响应"。
+                                    const contentType =
+                                        (upstream.headers.get("Content-Type") || "")
+                                            .split(";")[0]
+                                            ?.trim() || "";
+
+                                    if (contentType !== "text/event-stream") {
+                                        const upstreamJson = (await upstream.json()) as {
+                                            choices?: {
+                                                message?: {
+                                                    content?: string;
+                                                    tool_calls?: {
+                                                        id?: string;
+                                                        type?: string;
+                                                        function?: {
+                                                            name?: string;
+                                                            arguments?: string;
+                                                        };
+                                                    }[];
+                                                };
+                                            }[];
                                         };
-                                    })
-                                );
-                                for (const item of toolOutcomes) {
-                                    messagesForLLM.push({
-                                        role: "tool",
-                                        tool_call_id: item.toolCallId,
-                                        content: item.result,
-                                    });
+                                        const assistantMessage = upstreamJson.choices?.[0]?.message;
+                                        const toolCalls = (assistantMessage?.tool_calls || []).filter(
+                                            (tc) =>
+                                                tc?.function?.name &&
+                                                typeof tc.function.arguments === "string"
+                                        );
+                                        if (toolsActive && toolCalls.length > 0) {
+                                            const normalizedCalls = toolCalls.map((tc) => ({
+                                                id: tc.id || "",
+                                                type: "function" as const,
+                                                function: {
+                                                    name: tc.function!.name!,
+                                                    arguments: tc.function!.arguments!,
+                                                },
+                                            }));
+                                            await runToolCalls(normalizedCalls, round);
+                                            continue;
+                                        }
+                                        const reply = assistantMessage?.content?.trim() || "";
+                                        if (reply) {
+                                            streamedContent = true;
+                                            await send("delta", { content: reply });
+                                        }
+                                    } else {
+                                        await parseUpstreamSSE(
+                                            upstream,
+                                            async (delta) => {
+                                                if (
+                                                    typeof delta.content === "string" &&
+                                                    delta.content
+                                                ) {
+                                                    streamedContent = true;
+                                                    await send("delta", { content: delta.content });
+                                                }
+                                                if (Array.isArray(delta.tool_calls)) {
+                                                    for (const tc of delta.tool_calls) {
+                                                        const idx =
+                                                            typeof tc.index === "number" ? tc.index : 0;
+                                                        if (!assembledToolCalls[idx]) {
+                                                            assembledToolCalls[idx] = {
+                                                                id: tc.id || `call_${round}_${idx}`,
+                                                                type: "function",
+                                                                function: {
+                                                                    name: tc.function?.name || "",
+                                                                    arguments: "",
+                                                                },
+                                                            };
+                                                        }
+                                                        const slot = assembledToolCalls[idx];
+                                                        if (!slot) continue;
+                                                        if (tc.id) slot.id = tc.id;
+                                                        if (tc.function?.name) {
+                                                            slot.function.name = tc.function.name;
+                                                        }
+                                                        if (typeof tc.function?.arguments === "string") {
+                                                            slot.function.arguments += tc.function.arguments;
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            controller.signal
+                                        );
+                                    }
+
+                                    // 有技能调用（流式拼装）：执行并把结果回传给模型，进入下一轮
+                                    const hasToolCalls =
+                                        toolsActive && assembledToolCalls.length > 0;
+                                    if (hasToolCalls) {
+                                        const readyCalls = assembledToolCalls.filter(
+                                            (tc) => tc.function.name.length > 0
+                                        );
+                                        if (readyCalls.length > 0) {
+                                            await runToolCalls(readyCalls, round);
+                                            continue;
+                                        }
+                                    }
+                                    // 本轮已产出正文：流式下发完毕，收尾
+                                    if (streamedContent) {
+                                        await send("done", {
+                                            model: trimmedModel,
+                                            skillsUsed: usedSkills,
+                                        });
+                                        doneSent = true;
+                                        break;
+                                    }
+                                    // 本轮无产出：交给下一轮重试，最终由循环后兜底
                                 }
-                                continue;
+
+                                if (
+                                    !doneSent &&
+                                    !controller.signal.aborted &&
+                                    !request.signal.aborted
+                                ) {
+                                    await send("error", { message: "AI 未能生成有效回答，请重试" });
+                                }
+                            } catch (error) {
+                                const abortedByClient = request.signal.aborted;
+                                if (!abortedByClient) {
+                                    const isAbort =
+                                        error instanceof Error && error.name === "AbortError";
+                                    const message = isAbort
+                                        ? "AI 响应超时（长时间未收到数据），请稍后重试"
+                                        : "AI 请求失败，请检查 Base URL 与网络连通性";
+                                    log({
+                                        level: "warn",
+                                        message,
+                                        path: "/api/ai/chat",
+                                        method: "POST",
+                                        details: error instanceof Error ? error.message : error,
+                                    });
+                                    await send("error", { message });
+                                }
+                            } finally {
+                                request.signal.removeEventListener("abort", onClientAbort);
+                                try {
+                                    await writer.close();
+                                } catch {
+                                    /* ignore */
+                                }
                             }
+                        })();
 
-                            // 无技能调用：本轮产出即最终回答
-                            if (reply) {
-                                finalReply = reply;
-                                break;
-                            }
-                            // 内容为空：交给下一轮重试，最终由循环后兜底
-                        }
-
-                        clearTimeout(timeoutId);
-                        request.signal.removeEventListener("abort", onClientAbort);
-
-                        if (finalReply) {
-                            return createJsonResponse(
-                                {
-                                    success: true,
-                                    reply: finalReply,
-                                    model: trimmedModel,
-                                    skillsUsed: usedSkills,
-                                },
-                                request
-                            );
-                        }
-                        // 访客已点击「停止」：返回已停止，避免误报为生成失败
-                        if (controller.signal.aborted || request.signal.aborted) {
-                            return createJsonResponse(
-                                { success: false, message: "已停止生成" },
-                                request,
-                                { status: 499 }
-                            );
-                        }
-                        return createJsonResponse(
-                            { success: false, message: "AI 未能生成有效回答，请重试" },
-                            request,
-                            { status: 502 }
-                        );
+                        return new Response(readable, {
+                            headers: {
+                                ...getCorsHeaders(request),
+                                "Content-Type": "text/event-stream; charset=utf-8",
+                                "Cache-Control": "no-cache, no-transform",
+                                "X-Accel-Buffering": "no",
+                            },
+                        });
                     } catch (error) {
-                        // 注：try 块内声明的 controller 在 catch 中不可见（块级作用域），故改用 request.signal 判断客户端中止
-                        const abortedByClient = request.signal.aborted;
-                        const message =
-                            error instanceof Error && error.name === "AbortError"
-                                ? abortedByClient
-                                    ? "已停止生成"
-                                    : "AI 响应超时，请稍后重试"
-                                : "AI 请求失败，请检查 Base URL 与网络连通性";
                         log({
                             level: "warn",
-                            message,
+                            message: "AI 流式对话初始化失败",
                             path: "/api/ai/chat",
                             method: "POST",
                             details: error instanceof Error ? error.message : error,
                         });
                         return createJsonResponse(
-                            { success: false, message },
+                            { success: false, message: "AI 对话初始化失败，请重试" },
                             request,
                             { status: 502 }
                         );
@@ -2037,7 +2172,7 @@ interface ChatCompletionBody {
     model: string;
     messages: ChatMessage[];
     temperature: number;
-    stream: false;
+    stream: boolean;
     tools?: unknown;
     tool_choice?: "auto" | "none" | "required";
 }
@@ -2235,26 +2370,137 @@ function parseTokenBudget(raw?: string | null): number {
     return Math.min(8000, Math.max(1000, Math.round(n)));
 }
 
-/** 单轮上游 LLM 调用超时（ms）：防止某次调用挂起拖垮整段对话；另有全局 90s 兜底 */
-const LLM_ROUND_TIMEOUT_MS = 25000;
+/** SSE 流式对话的空闲超时（ms）：每收到一个 chunk 自动重置计时器；只有 30s 完全无数据才中止。
+ *  不再使用固定总超时——慢但仍在出字的模型永不超时，杜绝「等太久/不响应」。 */
+const STREAM_IDLE_TIMEOUT_MS = 30000;
 
-/** 带单轮超时的 fetch：请求一结束即清掉定时器；父信号（客户端停止/全局超时）任一触发即中止 */
-async function fetchWithTimeout(
+/** 流式增量（OpenAI SSE delta 结构的一个子集） */
+interface StreamDelta {
+    content?: string;
+    tool_calls?: {
+        index?: number;
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+    }[];
+}
+
+/** 带空闲超时的 fetch：响应体包装为「空闲 idleMs 毫秒无数据即中止底层 fetch」的流；
+ *  父信号（客户端停止）任一触发同样中止，联动停止上游生成、避免配额浪费。 */
+async function fetchWithIdleTimeout(
     input: string,
     init: RequestInit,
-    ms: number
+    idleMs: number
 ): Promise<Response> {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), ms);
-    const onParentAbort = () => ctrl.abort();
     const parent = init.signal;
+    const onParentAbort = () => ctrl.abort();
     parent?.addEventListener("abort", onParentAbort, { once: true });
+
+    const res = await fetch(input, { ...init, signal: ctrl.signal });
+    if (!res.body) return res;
+
+    const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+            const reader = res.body!.getReader();
+            let idleTimer: ReturnType<typeof setTimeout> | null = null;
+            const resetIdle = () => {
+                if (idleTimer) clearTimeout(idleTimer);
+                idleTimer = setTimeout(() => ctrl.abort(), idleMs);
+            };
+            resetIdle();
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    resetIdle();
+                    controller.enqueue(value);
+                }
+            } catch {
+                // 中止（空闲超时/客户端停止）或上游断流：自然结束
+            } finally {
+                if (idleTimer) clearTimeout(idleTimer);
+                try {
+                    reader.releaseLock();
+                } catch {
+                    /* ignore */
+                }
+                try {
+                    controller.close();
+                } catch {
+                    /* ignore */
+                }
+            }
+        },
+        cancel() {
+            ctrl.abort();
+        },
+    });
+
+    return new Response(body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers: res.headers,
+    });
+}
+
+/** 逐事件解析上游 SSE 流：每取到一个 delta 交给 onDelta 处理；收到 [DONE] 或流结束即返回。
+ *  支持 CRLF/LF、多行 data: 拼接；单条分片解析失败仅跳过，不中断整段流。 */
+async function parseUpstreamSSE(
+    response: Response,
+    onDelta: (delta: StreamDelta) => Promise<void>,
+    signal?: AbortSignal
+): Promise<void> {
+    const body = response.body;
+    if (!body) return;
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    // 处理当前缓冲中的完整事件块；返回 true 表示已读到终止标记 [DONE]
+    const flush = async (): Promise<boolean> => {
+        buffer = buffer.replace(/\r\n/g, "\n");
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const part of parts) {
+            const dataLines: string[] = [];
+            for (const line of part.split("\n")) {
+                if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+            }
+            if (dataLines.length === 0) continue;
+            const dataStr = dataLines.join("\n");
+            if (dataStr === "[DONE]") return true;
+            try {
+                const json = JSON.parse(dataStr) as {
+                    choices?: { delta?: StreamDelta }[];
+                };
+                const delta = json.choices?.[0]?.delta;
+                if (delta) await onDelta(delta);
+            } catch {
+                /* 忽略无法解析的分片（分包边界不会影响整体性） */
+            }
+        }
+        return false;
+    };
+
     try {
-        const res = await fetch(input, { ...init, signal: ctrl.signal });
-        return res;
+        while (true) {
+            if (signal?.aborted) break;
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            if (await flush()) break;
+        }
+        buffer += decoder.decode(); // 解码尾部残留
+        await flush();
+    } catch {
+        // 中止（空闲超时/客户端停止）或上游断流：由调用方根据 signal 区分超时与停止
     } finally {
-        clearTimeout(timer);
-        parent?.removeEventListener("abort", onParentAbort);
+        try {
+            reader.releaseLock();
+        } catch {
+            /* ignore */
+        }
     }
 }
 
