@@ -11,6 +11,7 @@ import {
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MenuIcon from '@mui/icons-material/Menu';
 import HomeIcon from '@mui/icons-material/Home';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ThemeToggle from '../ThemeToggle';
 import { useState } from 'react';
 
@@ -31,6 +32,10 @@ interface TopBarProps {
   onShowAll?: () => void;
   /** 当前是否处于某个分组视图（用于显示“回到全部”按钮） */
   isGroupView?: boolean;
+  /** AI 助手是否已由管理员开启 */
+  aiEnabled?: boolean;
+  /** 打开 AI 助手对话框 */
+  onOpenAI?: () => void;
 }
 
 export default function TopBar({
@@ -48,6 +53,8 @@ export default function TopBar({
   onMobileMenuOpen,
   onShowAll,
   isGroupView = false,
+  aiEnabled = false,
+  onOpenAI,
 }: TopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -112,6 +119,28 @@ export default function TopBar({
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} />
+
+        {aiEnabled && onOpenAI && (
+          <Tooltip title='AI 智能助手'>
+            <IconButton
+              size='small'
+              onClick={onOpenAI}
+              aria-label='AI 智能助手'
+              sx={{
+                borderRadius: '50%',
+                bgcolor: 'var(--color-elevated)',
+                boxShadow: 'var(--shadow-sm)',
+                color: 'var(--text-primary)',
+                '&:hover': {
+                  bgcolor: 'var(--color-card-hover)',
+                  color: 'var(--color-accent)',
+                },
+              }}
+            >
+              <AutoAwesomeIcon fontSize='small' />
+            </IconButton>
+          </Tooltip>
+        )}
 
         {isAuthenticated && (
           <>

@@ -29,6 +29,8 @@
     //   wrangler secret put AUTH_USERNAME
     //   wrangler secret put AUTH_PASSWORD
     //   wrangler secret put AUTH_SECRET
+    //   wrangler secret put AI_SECRET
+    // AI_SECRET：用于 AES-256-GCM 加密存储 AI API 密钥（可选，未配置时兜底使用 AUTH_SECRET）
     "vars": {
         "AUTH_ENABLED": "true"
     }

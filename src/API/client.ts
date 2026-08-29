@@ -1,4 +1,5 @@
 import { Group, Site, LoginResponse, ExportData, ImportResult, GroupWithSites } from './http';
+import { AIMessage, AISettings, AISettingsInput, AIChatResponse } from './ai';
 
 export class NavigationClient {
   private baseUrl: string;
@@ -314,5 +315,42 @@ export class NavigationClient {
       method: 'PUT',
       body: JSON.stringify({ site_ids: siteIds, target_group_id: targetGroupId }),
     });
+  }
+
+  // ========== AI 辅助 ==========
+
+  // 获取 AI 设置（API 密钥明文永远不下发，只返回是否已配置 + 掩码）
+  async getAISettings(): Promise<AISettings> {
+    return this.request('ai/settings');
+  }
+
+  // 保存 AI 设置（apiKey 为空表示保持已保存的密钥不变，密钥在服务端加密后入库）
+  async saveAISettings(data: AISettingsInput): Promise<{ success: boolean; message?: string }> {
+    return this.request('ai/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // 发送对话消息（Worker 解密密钥后调用 OpenAI 兼容接口，密钥不经过浏览器）
+  async aiChat(messages: AIMessage[]): Promise<AIChatResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ messages }),
+      });
+      const data = (await response.json().catch(() => null)) as AIChatResponse | null;
+      if (!response.ok) {
+        return { success: false, message: data?.message || `AI 请求失败（${response.status}）` };
+      }
+      return data ?? { success: false, message: 'AI 响应为空' };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'AI 请求失败，请检查网络连接',
+      };
+    }
   }
 }

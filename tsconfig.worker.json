@@ -9,5 +9,5 @@
       "vite/client"
     ]
   },
-  "include": ["worker", "src/API/http.ts"]
+  "include": ["worker", "src/API/http.ts", "src/API/ai.ts"]
 }

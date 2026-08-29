@@ -14,6 +14,7 @@ import BookmarkletGuide from './components/NewFeatures/BookmarkletGuide';
 import BookmarkletAddPanel from './components/NewFeatures/BookmarkletAddPanel';
 import BatchMoveDialog from './components/NewFeatures/BatchMoveDialog';
 import EnhancedSettings from './components/NewFeatures/EnhancedSettings';
+import AIAssistant from './components/NewFeatures/AIAssistant';
 import LoadingSkeleton from './components/LoadingSkeleton';
 import { sanitizeCSS, isSecureUrl, extractDomain } from './utils/url';
 import { SearchResultItem } from './utils/search';
@@ -109,6 +110,8 @@ const DEFAULT_CONFIGS = {
   'site.compactMode': 'false',
   'site.lazyLoadImages': 'false',
   'site.imageCache': 'false',
+  // AI 智能助手总开关（管理员在助手弹窗→设置中开启；默认关闭）
+  'ai.enabled': 'false',
 };
 
 function App() {
@@ -602,6 +605,7 @@ function App() {
   const [openBookmarklet, setOpenBookmarklet] = useState(false);
   const [openBatchMove, setOpenBatchMove] = useState(false);
   const [openEnhancedSettings, setOpenEnhancedSettings] = useState(false);
+  const [openAIAssistant, setOpenAIAssistant] = useState(false);
 
   // ========== 书签脚本弹窗模式 ==========
   const [bookmarkletData, setBookmarkletData] = useState<{
@@ -860,6 +864,8 @@ function App() {
             onOpenBookmarklet={() => setOpenBookmarklet(true)}
             onOpenBatchMove={() => setOpenBatchMove(true)}
             onOpenEnhancedSettings={() => setOpenEnhancedSettings(true)}
+            aiEnabled={configs['ai.enabled'] === 'true'}
+            onOpenAI={() => setOpenAIAssistant(true)}
             onLogout={handleLogout}
             onShowAll={handleShowAllGroups}
             isGroupView={activeGroupId !== null}
@@ -1335,6 +1341,14 @@ function App() {
             open={openLinkChecker}
             onClose={() => setOpenLinkChecker(false)}
             sites={groups.flatMap((g) => g.sites || [])}
+          />
+
+          {/* AI 智能助手对话框 */}
+          <AIAssistant
+            open={openAIAssistant}
+            onClose={() => setOpenAIAssistant(false)}
+            isAuthenticated={isAuthenticated}
+            api={api}
           />
 
           {/* 一键收藏对话框 */}

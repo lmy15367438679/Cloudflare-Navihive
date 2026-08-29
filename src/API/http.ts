@@ -36,6 +36,7 @@ export interface Env {
   AUTH_USERNAME?: string; // 认证用户名
   AUTH_PASSWORD?: string; // 认证密码哈希 (bcrypt)
   AUTH_SECRET?: string; // JWT密钥
+  AI_SECRET?: string; // AI 设置加密密钥（用于 AES-256-GCM 加密存储 AI API 密钥；未配置时兜底使用 AUTH_SECRET）
 }
 
 // 数据类型定义
@@ -670,6 +671,8 @@ export class NavigationAPI {
     // 将结果转换为键值对对象
     const configs: Record<string, string> = {};
     for (const config of result.results || []) {
+      // 过滤 AI API 密钥（服务端加密存储，绝不下发到前端/导出数据，防止泄漏）
+      if (config.key === 'ai.apiKey') continue;
       configs[config.key] = config.value;
     }
 

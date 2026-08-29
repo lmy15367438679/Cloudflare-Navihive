@@ -34,3 +34,10 @@ CREATE TABLE IF NOT EXISTS configs (
 
 -- 设置初始化标志
 INSERT INTO configs (key, value) VALUES ('DB_INITIALIZED', 'true');
+
+-- AI 辅助功能默认配置
+-- 说明：ai.apiKey 由 Worker 在服务端用 AES-256-GCM 加密后写入（密钥来自 AI_SECRET/AUTH_SECRET），
+-- 绝不写入明文，也绝不下发到前端；下方仅预置开关与留空的基础配置。
+INSERT INTO configs (key, value) VALUES ('ai.enabled', 'false');
+INSERT INTO configs (key, value) VALUES ('ai.baseUrl', '');
+INSERT INTO configs (key, value) VALUES ('ai.model', '');

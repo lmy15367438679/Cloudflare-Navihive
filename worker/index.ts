@@ -6,6 +6,7 @@ import {
     type Site,
     type Env,
 } from "../src/API/http";
+import { DEFAULT_AI_SYSTEM_PROMPT } from "../src/API/ai";
 
 /**
  * 简单的内存速率限制器
@@ -68,6 +69,9 @@ class SimpleRateLimiter {
 // 创建登录端点速率限制器: 5次尝试/15分钟
 const loginRateLimiter = new SimpleRateLimiter(5, 15);
 
+// AI 聊天速率限制: 20次/分钟/IP（功能开启后访客可免登录使用，需限流防滥用）
+const aiChatRateLimiter = new SimpleRateLimiter(20, 1);
+
 
 /**
  * 只读路由白名单 - 这些路由在 AUTH_REQUIRED_FOR_READ=false 时无需认证
@@ -78,6 +82,67 @@ const READ_ONLY_ROUTES = [
     { method: 'GET', path: '/api/configs' },
     { method: 'GET', path: '/api/groups-with-sites' },
 ] as const;
+
+// ========== AI 辅助：API 密钥 AES-256-GCM 加密（防泄漏） ==========
+// 安全模型：密钥明文只存在于浏览器 → Worker 的 HTTPS 传输过程中；
+// 入库前用 WebCrypto AES-GCM 加密存储，加密密钥由 AI_SECRET（未配置则兜底 AUTH_SECRET）
+// 经 SHA-256 派生。前端接口（configs / ai/settings / export）绝不返回密钥明文或密文。
+
+function bufToHex(buf: ArrayBuffer | Uint8Array): string {
+    const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+}
+
+function hexToBuf(hex: string): Uint8Array {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+}
+
+async function getAIEncryptionKey(env: Env): Promise<CryptoKey | null> {
+    const secret = env.AI_SECRET || env.AUTH_SECRET;
+    if (!secret) return null;
+    const rawKey = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+    return crypto.subtle.importKey("raw", rawKey, { name: "AES-GCM" }, false, [
+        "encrypt",
+        "decrypt",
+    ]);
+}
+
+/** 加密明文 API 密钥 → `ivHex:dataHex`；未配置 AI_SECRET / AUTH_SECRET 时返回 null */
+async function encryptAISecret(plain: string, env: Env): Promise<string | null> {
+    const key = await getAIEncryptionKey(env);
+    if (!key) return null;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const cipherBuffer = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        key,
+        new TextEncoder().encode(plain)
+    );
+    return `${bufToHex(iv.buffer)}:${bufToHex(cipherBuffer)}`;
+}
+
+/** 解密存储的密钥 → 明文；解密失败（密钥被重置 / 数据损坏）返回 null */
+async function decryptAISecret(stored: string, env: Env): Promise<string | null> {
+    const key = await getAIEncryptionKey(env);
+    if (!key) return null;
+    const [ivHex, dataHex] = stored.split(":");
+    if (!ivHex || !dataHex) return null;
+    try {
+        const decrypted = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: hexToBuf(ivHex) },
+            key,
+            hexToBuf(dataHex)
+        );
+        return new TextDecoder().decode(decrypted);
+    } catch {
+        return null;
+    }
+}
 
 /**
  * 判断主机名是否为禁止回源的本地/内网/保留地址（防 SSRF，供图标代理使用）
@@ -640,7 +705,13 @@ export default {
                         (route) => route.method === method && route.path === requestPath
                     );
 
-                    const shouldRequireAuth = !isReadOnlyRoute || env.AUTH_REQUIRED_FOR_READ === 'true';
+                    // AI 对话路由：密钥由站长统一配置并经服务端代理调用，访客可免登录使用
+                    // （当 AUTH_REQUIRED_FOR_READ=true 时整体进入私密模式，访客同样被禁止）
+                    const isPublicAIRoute = method === "POST" && requestPath === "/api/ai/chat";
+
+                    const shouldRequireAuth =
+                        (!isReadOnlyRoute && !isPublicAIRoute) ||
+                        env.AUTH_REQUIRED_FOR_READ === 'true';
 
                     // 总是检查 token（如果存在）
                     const cookieHeader = request.headers.get("Cookie");
@@ -1211,7 +1282,275 @@ export default {
                     return createJsonResponse(result, request);
                 }
 
-                // ========== 新增功能 API ==========
+                // ========== AI 辅助 API ==========
+
+                // 获取 AI 设置（密钥明文与密文均不下发，仅返回是否已配置 + 掩码）
+                else if (path === "ai/settings" && method === "GET") {
+                    const [enabled, baseUrl, model, systemPrompt, storedKey] =
+                        await Promise.all([
+                            api.getConfig("ai.enabled"),
+                            api.getConfig("ai.baseUrl"),
+                            api.getConfig("ai.model"),
+                            api.getConfig("ai.systemPrompt"),
+                            api.getConfig("ai.apiKey"),
+                        ]);
+
+                    // 掩码：仅展示末尾 4 位，用于确认已保存过密钥，不泄露明文
+                    let maskedKey = "";
+                    if (storedKey) {
+                        const decrypted = await decryptAISecret(storedKey, env);
+                        maskedKey = decrypted
+                            ? (decrypted.length > 4 ? `****${decrypted.slice(-4)}` : "****")
+                            : "****";
+                    }
+
+                    return createJsonResponse(
+                        {
+                            enabled: enabled === "true",
+                            baseUrl: baseUrl || "",
+                            model: model || "",
+                            systemPrompt: systemPrompt || "",
+                            hasKey: Boolean(storedKey),
+                            maskedKey,
+                        },
+                        request
+                    );
+                }
+
+                // 保存 AI 设置（密钥非空时在服务端加密后入库；留空表示保持已有密钥不变）
+                else if (path === "ai/settings" && method === "PUT") {
+                    const data = (await validateRequestBody(request)) as AiSettingsInput;
+
+                    const errors = validateAISettings(data);
+                    if (errors.length > 0) {
+                        return createJsonResponse(
+                            { success: false, message: `验证失败: ${errors.join("; ")}` },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    if (data.enabled !== undefined) {
+                        await api.setConfig("ai.enabled", data.enabled ? "true" : "false");
+                    }
+                    if (data.baseUrl !== undefined) {
+                        await api.setConfig("ai.baseUrl", data.baseUrl.trim());
+                    }
+                    if (data.model !== undefined) {
+                        await api.setConfig("ai.model", data.model.trim());
+                    }
+                    if (data.systemPrompt !== undefined) {
+                        await api.setConfig(
+                            "ai.systemPrompt",
+                            data.systemPrompt.trimStart()
+                        );
+                    }
+                    if (data.apiKey !== undefined && data.apiKey.trim() !== "") {
+                        const encrypted = await encryptAISecret(data.apiKey.trim(), env);
+                        if (!encrypted) {
+                            return createJsonResponse(
+                                {
+                                    success: false,
+                                    message:
+                                        "未配置 AI_SECRET / AUTH_SECRET，无法安全加密 API 密钥，请先在 Wrangler 环境中配置后重试",
+                                },
+                                request,
+                                { status: 500 }
+                            );
+                        }
+                        await api.setConfig("ai.apiKey", encrypted);
+                    }
+
+                    return createJsonResponse(
+                        { success: true, message: "AI 设置已保存" },
+                        request
+                    );
+                }
+
+                // AI 对话代理：服务端解密密钥并转发到 OpenAI 兼容接口（密钥不经过浏览器）
+                else if (path === "ai/chat" && method === "POST") {
+                    // 开关检查
+                    if ((await api.getConfig("ai.enabled")) !== "true") {
+                        return createJsonResponse(
+                            { success: false, message: "AI 辅助功能未开启" },
+                            request,
+                            { status: 403 }
+                        );
+                    }
+
+                    // 按 IP 限流，防止共享密钥被滥用
+                    const clientIP =
+                        request.headers.get("CF-Connecting-IP") ||
+                        request.headers.get("X-Forwarded-For") ||
+                        "unknown";
+                    if (!aiChatRateLimiter.check(clientIP)) {
+                        return createJsonResponse(
+                            { success: false, message: "请求过于频繁，请稍后再试" },
+                            request,
+                            { status: 429 }
+                        );
+                    }
+
+                    const data = (await validateRequestBody(request)) as {
+                        messages?: { role?: string; content?: string }[];
+                    };
+                    if (
+                        !Array.isArray(data.messages) ||
+                        data.messages.length === 0 ||
+                        data.messages.length > 50
+                    ) {
+                        return createJsonResponse(
+                            { success: false, message: "消息内容不能为空且单次最多 50 条" },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    const [baseUrl, model, storedKey, customPrompt] = await Promise.all([
+                        api.getConfig("ai.baseUrl"),
+                        api.getConfig("ai.model"),
+                        api.getConfig("ai.apiKey"),
+                        api.getConfig("ai.systemPrompt"),
+                    ]);
+
+                    const trimmedBaseUrl = (baseUrl || "").trim();
+                    const trimmedModel = (model || "").trim();
+                    if (!trimmedBaseUrl || !trimmedModel || !storedKey) {
+                        return createJsonResponse(
+                            {
+                                success: false,
+                                message:
+                                    "AI 尚未配置完成，请管理员在设置中填写 Base URL、模型与 API 密钥",
+                            },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    const secretKey = await decryptAISecret(storedKey, env);
+                    if (!secretKey) {
+                        return createJsonResponse(
+                            {
+                                success: false,
+                                message:
+                                    "API 密钥解密失败（可能 AI_SECRET 已变更），请管理员重新保存密钥",
+                            },
+                            request,
+                            { status: 500 }
+                        );
+                    }
+
+                    // 组装 OpenAI 兼容请求：内置/自定义系统提示词 + 对话历史（保留最近 20 条）
+                    const messages: { role: string; content: string }[] = [
+                        { role: "system", content: customPrompt || DEFAULT_AI_SYSTEM_PROMPT },
+                        ...data.messages
+                            .filter(
+                                (m) =>
+                                    m &&
+                                    (m.role === "user" || m.role === "assistant") &&
+                                    typeof m?.content === "string" &&
+                                    (m.content as string).length <= 8000
+                            )
+                            .slice(-20)
+                            .map((m) => ({
+                                role: m?.role as string,
+                                content: (m?.content as string) || "",
+                            })),
+                    ];
+                    if (messages.length <= 1) {
+                        return createJsonResponse(
+                            { success: false, message: "消息内容不能为空" },
+                            request,
+                            { status: 400 }
+                        );
+                    }
+
+                    const endpoint = trimmedBaseUrl.replace(/\/+$/, "") + "/chat/completions";
+
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s 响应超时
+
+                        const upstream = await fetch(endpoint, {
+                            method: "POST",
+                            signal: controller.signal,
+                            headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${secretKey}`,
+                            },
+                            body: JSON.stringify({
+                                model: trimmedModel,
+                                messages,
+                                temperature: 0.7,
+                                stream: false,
+                            }),
+                        });
+                        clearTimeout(timeoutId);
+
+                        if (!upstream.ok) {
+                            let detail = "";
+                            try {
+                                const errBody = (await upstream.json()) as {
+                                    error?: { message?: string };
+                                };
+                                detail = errBody.error?.message || "";
+                            } catch {
+                                detail = (await upstream.text()).slice(0, 300);
+                            }
+                            log({
+                                level: "warn",
+                                message: `AI 上游接口返回错误: ${upstream.status}`,
+                                path: "/api/ai/chat",
+                                method: "POST",
+                                details: detail,
+                            });
+                            return createJsonResponse(
+                                {
+                                    success: false,
+                                    message:
+                                        `AI 服务返回错误（${upstream.status}）：` +
+                                        (detail || "无详细信息"),
+                                },
+                                request,
+                                { status: upstream.status >= 500 ? 502 : 400 }
+                            );
+                        }
+
+                        const upstreamJson = (await upstream.json()) as {
+                            choices?: { message?: { content?: string } }[];
+                        };
+                        const reply = upstreamJson.choices?.[0]?.message?.content?.trim() || "";
+                        if (!reply) {
+                            return createJsonResponse(
+                                { success: false, message: "AI 返回内容为空" },
+                                request,
+                                { status: 502 }
+                            );
+                        }
+
+                        return createJsonResponse(
+                            { success: true, reply, model: trimmedModel },
+                            request
+                        );
+                    } catch (error) {
+                        const message =
+                            error instanceof Error && error.name === "AbortError"
+                                ? "AI 响应超时，请稍后重试"
+                                : "AI 请求失败，请检查 Base URL 与网络连通性";
+                        log({
+                            level: "warn",
+                            message,
+                            path: "/api/ai/chat",
+                            method: "POST",
+                            details: error instanceof Error ? error.message : error,
+                        });
+                        return createJsonResponse(
+                            { success: false, message },
+                            request,
+                            { status: 502 }
+                        );
+                    }
+                }
 
                 // 链接检测 API - 批量检测站点链接可用性
                 else if (path === "check-links" && method === "POST") {
@@ -1349,6 +1688,14 @@ interface SiteInput {
 
 interface ConfigInput {
     value?: string;
+}
+
+interface AiSettingsInput {
+    enabled?: boolean;
+    baseUrl?: string;
+    model?: string;
+    systemPrompt?: string;
+    apiKey?: string;
 }
 
 // 输入验证函数
@@ -1521,6 +1868,44 @@ function validateConfig(data: ConfigInput): { valid: boolean; errors?: string[] 
     }
 
     return { valid: errors.length === 0, errors };
+}
+
+// AI 设置校验：返回错误信息数组（空数组表示通过）
+function validateAISettings(data: AiSettingsInput): string[] {
+    const errors: string[] = [];
+
+    if (data.enabled !== undefined && typeof data.enabled !== "boolean") {
+        errors.push("enabled 必须是布尔值");
+    }
+    if (
+        data.baseUrl !== undefined &&
+        (typeof data.baseUrl !== "string" || data.baseUrl.trim().length > 500)
+    ) {
+        errors.push("baseUrl 必须是字符串且不超过 500 字符");
+    }
+    if (
+        data.model !== undefined &&
+        (typeof data.model !== "string" || data.model.trim().length > 200)
+    ) {
+        errors.push("model 必须是字符串且不超过 200 字符");
+    }
+    if (data.systemPrompt !== undefined && typeof data.systemPrompt !== "string") {
+        errors.push("systemPrompt 必须是字符串");
+    }
+    if (
+        data.systemPrompt !== undefined &&
+        data.systemPrompt.length > 4000
+    ) {
+        errors.push("systemPrompt 不能超过 4000 字符");
+    }
+    if (
+        data.apiKey !== undefined &&
+        (typeof data.apiKey !== "string" || data.apiKey.trim().length > 1000)
+    ) {
+        errors.push("apiKey 必须是字符串且不超过 1000 字符");
+    }
+
+    return errors;
 }
 
 // 声明ExportedHandler类型

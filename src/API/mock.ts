@@ -1,4 +1,5 @@
 import { Group, Site, LoginResponse, ExportData, ImportResult, GroupWithSites } from './http';
+import { AIMessage, AISettings, AISettingsInput, AIChatResponse } from './ai';
 
 // 模拟数据
 const mockGroups: Group[] = [
@@ -599,5 +600,63 @@ export class MockNavigationClient {
         error: error instanceof Error ? error.message : '未知错误',
       };
     }
+  }
+
+  // ========== AI 辅助（内存模拟，dev 模式无需真实加密） ==========
+
+  // 模拟 AI 设置：明文仅存在于本机内存，不会与任何远端服务通信
+  private mockAISettings: {
+    enabled: boolean;
+    baseUrl: string;
+    model: string;
+    systemPrompt: string;
+    apiKey: string;
+  } = {
+    enabled: false,
+    baseUrl: '',
+    model: '',
+    systemPrompt: '',
+    apiKey: '',
+  };
+
+  async getAISettings(): Promise<AISettings> {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const s = this.mockAISettings;
+    return {
+      enabled: s.enabled,
+      baseUrl: s.baseUrl,
+      model: s.model,
+      systemPrompt: s.systemPrompt,
+      hasKey: Boolean(s.apiKey),
+      maskedKey: s.apiKey ? `****${s.apiKey.slice(-4)}` : '',
+    };
+  }
+
+  async saveAISettings(data: AISettingsInput): Promise<{ success: boolean; message?: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const s = this.mockAISettings;
+    if (data.enabled !== undefined) s.enabled = data.enabled;
+    if (data.baseUrl !== undefined) s.baseUrl = data.baseUrl.trim();
+    if (data.model !== undefined) s.model = data.model.trim();
+    if (data.systemPrompt !== undefined) s.systemPrompt = data.systemPrompt;
+    // 留空 = 保持已有密钥不变
+    if (data.apiKey !== undefined && data.apiKey.trim() !== '') {
+      s.apiKey = data.apiKey.trim();
+    }
+    mockConfigs['ai.enabled'] = s.enabled ? 'true' : 'false';
+    return { success: true, message: 'AI 设置已保存' };
+  }
+
+  async aiChat(messages: AIMessage[]): Promise<AIChatResponse> {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    if (this.mockAISettings.enabled && this.mockAISettings.apiKey) {
+      const last = messages[messages.length - 1];
+      return {
+        success: true,
+        reply: `（模拟回复）你好，我是 NaviHive 助手。你刚才说的是：「${last?.content || ''}」。当前为开发模拟模式，接入真实 AI 后即可获得智能回答。`,
+        model: this.mockAISettings.model || 'mock',
+      };
+    }
+    return { success: false, message: 'AI 尚未配置，请先在设置中填写 Base URL 与 API 密钥' };
   }
 }
