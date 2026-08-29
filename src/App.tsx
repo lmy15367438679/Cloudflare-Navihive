@@ -624,8 +624,12 @@ function App() {
   } | null>(null);
 
   // ========== useEffect ==========
+  // checkAuthStatus 每次渲染都会变化（useAuth 内部依赖内联回调），用 ref 保持「仅挂载时执行一次」的语义
+  const checkAuthStatusRef = useRef(checkAuthStatus);
+  checkAuthStatusRef.current = checkAuthStatus;
+
   useEffect(() => {
-    checkAuthStatus();
+    checkAuthStatusRef.current();
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('add_bookmark') === 'true') {
@@ -712,7 +716,7 @@ function App() {
     return () => {
       channel?.close();
     };
-  }, []);
+  }, [fetchData]);
 
   // 页面可见性变化自动刷新
   const isFirstVisibleRef = useRef(true);
@@ -729,7 +733,7 @@ function App() {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+  }, [fetchData]);
 
   // ========== 渲染 ==========
 
@@ -783,7 +787,7 @@ function App() {
           groups={groups}
           configs={configs}
           onSave={async (siteData) => {
-            await api.createSite(siteData);
+            await api.createSite({ ...siteData, notes: '' });
           }}
           onClose={() => window.close()}
           handleError={handleError}

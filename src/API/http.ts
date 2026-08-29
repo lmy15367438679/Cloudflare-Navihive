@@ -69,6 +69,15 @@ export interface GroupWithSites extends Group {
   sites: Site[];
 }
 
+// 链接检测结果
+export interface LinkCheckResult {
+  url: string;
+  status: 'ok' | 'redirect' | 'error' | 'timeout';
+  statusCode?: number;
+  error?: string;
+  duration?: number;
+}
+
 // 新增配置接口
 export interface Config {
   key: string;

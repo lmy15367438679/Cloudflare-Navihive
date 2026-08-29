@@ -19,6 +19,18 @@ import {
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import { extractDomain } from '../../utils/url'; // 注意：如果是独立文件，请根据实际目录结构调整 utils/url 的相对引入路径
+import type { Group } from '../../API/http';
+
+// 书签脚本面板提交的站点数据（Site 的子集，notes 由调用方补全）
+interface BookmarkletSiteData {
+  name: string;
+  url: string;
+  icon: string;
+  description: string;
+  group_id: number;
+  is_public: number;
+  order_num: number;
+}
 
 interface BookmarkletAddPanelProps {
   initialData: {
@@ -27,9 +39,9 @@ interface BookmarkletAddPanelProps {
     icon: string;
     description: string;
   };
-  groups: any[];
+  groups: Group[];
   configs: Record<string, string>;
-  onSave: (siteData: any) => Promise<void>;
+  onSave: (siteData: BookmarkletSiteData) => Promise<void>;
   onClose: () => void;
   handleError: (msg: string) => void;
 }
@@ -54,7 +66,7 @@ export default function BookmarkletAddPanel({
   // 当可用分组数据加载完毕后，默认选定第一个分组作为填充
   useEffect(() => {
     if (groups && groups.length > 0) {
-      setGroupId(groups[0].id);
+      setGroupId(groups[0]?.id ?? 0);
     }
   }, [groups]);
 

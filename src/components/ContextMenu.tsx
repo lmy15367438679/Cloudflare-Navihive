@@ -1,4 +1,3 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -10,56 +9,7 @@ import {
   ClickAwayListener,
   Portal,
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
-import type { ReactNode } from 'react';
-
-export interface ContextMenuAction {
-  label: string;
-  icon?: ReactNode;
-  onClick: () => void;
-  destructive?: boolean;
-  dividerAfter?: boolean;
-}
-
-export function useContextMenu() {
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-  const popperRef = useRef<HTMLDivElement>(null);
-
-  const open = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent) => {
-    e.preventDefault();
-    let clientX: number;
-    let clientY: number;
-    if ('touches' in e && e.touches.length > 0) {
-      const touch = e.touches[0]!;
-      clientX = touch.clientX;
-      clientY = touch.clientY;
-    } else if ('clientX' in e) {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    } else {
-      clientX = 0;
-      clientY = 0;
-    }
-    setPosition({ x: clientX, y: clientY });
-  }, []);
-
-  const close = useCallback(() => {
-    setPosition(null);
-  }, []);
-
-  useEffect(() => {
-    const handleClick = () => close();
-    if (position) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
-    return undefined;
-  }, [position, close]);
-
-  return { position, close, open, popperRef };
-}
+import type { ContextMenuAction } from './ContextMenuActions';
 
 interface ContextMenuPopperProps {
   position: { x: number; y: number } | null;
@@ -142,34 +92,3 @@ export function ContextMenuPopper({
 
   return <Portal>{menuContent}</Portal>;
 }
-
-export const siteContextActions = (
-  onEdit: () => void,
-  onDelete: () => void,
-  onMoveGroupRequest?: () => void
-): ContextMenuAction[] => {
-  const actions: ContextMenuAction[] = [
-    { label: '编辑', icon: <EditIcon fontSize='small' />, onClick: onEdit },
-  ];
-
-  if (onMoveGroupRequest) {
-    actions.push({
-      label: '移动到分组',
-      icon: <DriveFileMoveIcon fontSize='small' />,
-      onClick: onMoveGroupRequest,
-      dividerAfter: true,
-    });
-  }
-
-  actions.push({
-    label: '删除',
-    icon: <DeleteIcon fontSize='small' />,
-    onClick: onDelete,
-    destructive: true,
-  });
-  return actions;
-};
-
-export const groupContextActions = (onDelete: () => void): ContextMenuAction[] => [
-  { label: '删除', icon: <DeleteIcon fontSize='small' />, onClick: onDelete, destructive: true },
-];

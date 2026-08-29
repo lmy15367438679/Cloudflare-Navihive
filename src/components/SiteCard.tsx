@@ -17,7 +17,9 @@ import {
   IconButton,
 } from '@mui/material';
 import { Star as StarIcon, StarBorder as StarBorderIcon } from '@mui/icons-material';
-import { useContextMenu, ContextMenuPopper, siteContextActions } from './ContextMenu';
+import { useContextMenu } from './useContextMenu';
+import { ContextMenuPopper } from './ContextMenu';
+import { siteContextActions } from './ContextMenuActions';
 import { getIconProxyUrl } from '../utils/url';
 
 interface SiteCardProps {

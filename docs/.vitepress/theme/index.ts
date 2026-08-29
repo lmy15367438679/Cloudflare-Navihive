@@ -3,7 +3,7 @@ import './style.css';
 
 export default {
   extends: DefaultTheme,
-  enhanceApp({ app }) {
-    // 可以注册全局组件
+  enhanceApp() {
+    // 可以在这里注册全局组件（VitePress 会向 enhanceApp 传入 { app, router, siteData }）
   },
 };

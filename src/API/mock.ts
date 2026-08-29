@@ -1,4 +1,12 @@
-import { Group, Site, LoginResponse, ExportData, ImportResult, GroupWithSites } from './http';
+import {
+  Group,
+  Site,
+  LoginResponse,
+  ExportData,
+  ImportResult,
+  GroupWithSites,
+  LinkCheckResult,
+} from './http';
 import { AIMessage, AISettings, AISettingsInput, AIChatResponse } from './ai';
 
 // 模拟数据
@@ -420,7 +428,7 @@ export class MockNavigationClient {
   // ========== 新增功能 API ==========
 
   // 链接检测
-  async checkLinks(urls: string[]): Promise<{ success: boolean; results: any[] }> {
+  async checkLinks(urls: string[]): Promise<{ success: boolean; results: LinkCheckResult[] }> {
     await new Promise((resolve) => setTimeout(resolve, 500));
     // 模拟检测结果
     const results = urls.map((url) => ({

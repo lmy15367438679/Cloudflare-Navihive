@@ -1,4 +1,12 @@
-import { Group, Site, LoginResponse, ExportData, ImportResult, GroupWithSites } from './http';
+import {
+  Group,
+  Site,
+  LoginResponse,
+  ExportData,
+  ImportResult,
+  GroupWithSites,
+  LinkCheckResult,
+} from './http';
 import { AIMessage, AISettings, AISettingsInput, AIChatResponse } from './ai';
 
 export class NavigationClient {
@@ -274,7 +282,7 @@ export class NavigationClient {
   // ========== 新增功能 API ==========
 
   // 链接检测
-  async checkLinks(urls: string[]): Promise<{ success: boolean; results: any[] }> {
+  async checkLinks(urls: string[]): Promise<{ success: boolean; results: LinkCheckResult[] }> {
     return this.request('check-links', {
       method: 'POST',
       body: JSON.stringify({ urls }),

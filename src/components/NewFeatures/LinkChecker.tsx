@@ -28,15 +28,7 @@ import WarningIcon from '@mui/icons-material/Warning';
 import ErrorIcon from '@mui/icons-material/Error';
 import TimerIcon from '@mui/icons-material/Timer';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import type { Site } from '../../API/http';
-
-interface LinkCheckResult {
-  url: string;
-  status: 'ok' | 'redirect' | 'error' | 'timeout';
-  statusCode?: number;
-  error?: string;
-  duration?: number;
-}
+import type { Site, LinkCheckResult } from '../../API/http';
 
 interface LinkCheckerProps {
   open: boolean;

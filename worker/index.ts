@@ -1605,6 +1605,16 @@ export default {
                         ...historyTrim.history,
                     ];
 
+                    // 极简「寒暄/闲聊」识别：这类消息直接由模型单轮作答，跳过技能（函数调用）环路，
+                    // 省掉 1~2 次上游往返，显著降低简单问题的响应时延。
+                    const latestUserChat = [...filtered]
+                        .reverse()
+                        .find((m) => m.role === "user");
+                    const skipSkillOneShot =
+                        toolsEnabled &&
+                        !!latestUserChat &&
+                        isSimpleChatMessage(latestUserChat.content);
+
                     const endpoint = trimmedBaseUrl.replace(/\/+$/, "") + "/chat/completions";
 
                     try {
@@ -1615,8 +1625,8 @@ export default {
                         // 技能调用可能产生多轮上游请求，单次对话总超时 90s
                         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-                        // ---- AI 技能（函数调用）循环：最多 MAX_TOOL_ROUNDS 轮 ----
-                        const MAX_TOOL_ROUNDS = 3;
+                        // ---- AI 技能（函数调用）循环：最多 MAX_TOOL_ROUNDS 轮（2 轮：调技能→作答）----
+                        const MAX_TOOL_ROUNDS = 2;
                         let toolsActive = toolsEnabled;
                         const usedSkills: string[] = [];
                         let finalReply: string | null = null;
@@ -1630,7 +1640,7 @@ export default {
                                 temperature: 0.7,
                                 stream: false,
                             };
-                            if (toolsActive) {
+                            if (toolsActive && !skipSkillOneShot) {
                                 body.tools = extSkillsEnabled
                                     ? [...AI_SKILL_TOOLS, ...EXT_AI_SKILL_TOOLS]
                                     : AI_SKILL_TOOLS;
@@ -1645,18 +1655,22 @@ export default {
                                 details: {
                                     model: trimmedModel,
                                     messageCount: messagesForLLM.length,
+                                    skillsSkipped: skipSkillOneShot,
                                 },
                             });
 
-                            const upstream = await fetch(endpoint, {
-                                method: "POST",
-                                signal: controller.signal,
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    Authorization: `Bearer ${secretKey}`,
+                            const upstream = await fetchWithTimeout(
+                                endpoint,
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${secretKey}`,
+                                    },
+                                    body: JSON.stringify(body),
                                 },
-                                body: JSON.stringify(body),
-                            });
+                                LLM_ROUND_TIMEOUT_MS
+                            );
                         clearTimeout(timeoutId);
 
                         if (!upstream.ok) {
@@ -1747,39 +1761,49 @@ export default {
                                         },
                                     })),
                                 });
-                                for (const [idx, tc] of toolCalls.entries()) {
-                                    const name = tc.function!.name!;
-                                    let result: string;
-                                    try {
-                                        let args: Record<string, unknown> = {};
+                                // 并行执行同一轮的多个技能（互不依赖），整体耗时取最大值而非累加；
+                                // 结果按下标顺序回传，保证 tool 消息与 tool_calls 一一对应
+                                const toolOutcomes = await Promise.all(
+                                    toolCalls.map(async (tc, idx) => {
+                                        const name = tc.function!.name!;
+                                        let result: string;
                                         try {
-                                            const parsed = JSON.parse(
-                                                tc.function?.arguments || "{}"
-                                            );
-                                            if (parsed && typeof parsed === "object") {
-                                                args = parsed as Record<string, unknown>;
+                                            let args: Record<string, unknown> = {};
+                                            try {
+                                                const parsed = JSON.parse(
+                                                    tc.function?.arguments || "{}"
+                                                );
+                                                if (parsed && typeof parsed === "object") {
+                                                    args = parsed as Record<string, unknown>;
+                                                }
+                                            } catch {
+                                                args = {};
                                             }
-                                        } catch {
-                                            args = {};
+                                            result = await executeAISkill(env, name, args);
+                                            if (!usedSkills.includes(name)) usedSkills.push(name);
+                                        } catch (error) {
+                                            result = `技能「${name}」执行失败：${
+                                                error instanceof Error ? error.message : "未知错误"
+                                            }`;
                                         }
-                                        result = await executeAISkill(env, name, args);
-                                        if (!usedSkills.includes(name)) usedSkills.push(name);
-                                    } catch (error) {
-                                        result = `技能「${name}」执行失败：${
-                                            error instanceof Error ? error.message : "未知错误"
-                                        }`;
-                                    }
-                                    log({
-                                        level: "info",
-                                        message: `AI 技能执行: ${name}`,
-                                        path: "/api/ai/chat",
-                                        method: "POST",
-                                        details: (result || "").slice(0, 200),
-                                    });
+                                        log({
+                                            level: "info",
+                                            message: `AI 技能执行: ${name}`,
+                                            path: "/api/ai/chat",
+                                            method: "POST",
+                                            details: (result || "").slice(0, 200),
+                                        });
+                                        return {
+                                            toolCallId: tc.id || `call_${round}_${idx}`,
+                                            result,
+                                        };
+                                    })
+                                );
+                                for (const item of toolOutcomes) {
                                     messagesForLLM.push({
                                         role: "tool",
-                                        tool_call_id: tc.id || `call_${round}_${idx}`,
-                                        content: result,
+                                        tool_call_id: item.toolCallId,
+                                        content: item.result,
                                     });
                                 }
                                 continue;
@@ -1921,10 +1945,9 @@ export default {
                     // 自动获取图标
                     let icon = data.icon || '';
                     if (!icon) {
-                        try {
-                            const domain = new URL(url).hostname;
-                            icon = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
-                        } catch {}
+                        // URL 已在上方校验（见 bookmarklet/add 路由），此处直接安全解析域名
+                        const domain = new URL(url).hostname;
+                        icon = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
                     }
 
                     const site = await api.createSite({
@@ -2210,6 +2233,48 @@ function parseTokenBudget(raw?: string | null): number {
     const n = Number(raw || "");
     if (!Number.isFinite(n) || n <= 0) return 0;
     return Math.min(8000, Math.max(1000, Math.round(n)));
+}
+
+/** 单轮上游 LLM 调用超时（ms）：防止某次调用挂起拖垮整段对话；另有全局 90s 兜底 */
+const LLM_ROUND_TIMEOUT_MS = 25000;
+
+/** 带单轮超时的 fetch：请求一结束即清掉定时器；父信号（客户端停止/全局超时）任一触发即中止 */
+async function fetchWithTimeout(
+    input: string,
+    init: RequestInit,
+    ms: number
+): Promise<Response> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    const onParentAbort = () => ctrl.abort();
+    const parent = init.signal;
+    parent?.addEventListener("abort", onParentAbort, { once: true });
+    try {
+        const res = await fetch(input, { ...init, signal: ctrl.signal });
+        return res;
+    } finally {
+        clearTimeout(timer);
+        parent?.removeEventListener("abort", onParentAbort);
+    }
+}
+
+/** 无需技能检索的极简「寒暄/闲聊」句式：命中时跳过函数调用环路，模型单轮直接作答 */
+const SIMPLE_CHAT_PATTERNS: RegExp[] = [
+    // 问候（含语气词与常见拖尾）
+    /^(hi|hello|hey|yo|hai|hiya|hello there|嗨|哈喽|哈啰|你好|您好|你们好|大家好|早上好|中午好|下午好|晚上好|在吗|在不在)(呀|啊|吗|呢|哇|哈|哦|噢|捏|鸭)?[，。,.!！?？\s]*$/i,
+    // 感谢与确认
+    /^(谢谢|多谢|感谢|谢谢啦|谢谢了|辛苦了|受教了|明白了|懂了|知道了|好的|好滴|好的呢|没问题|收到|ok|okay|thx|thanks|thank you|ty|3q)[，。,.!！?？\s]*(呀|啦|了|呢|哦|哈)?$/i,
+    // 自我介绍 / 能力询问
+    /^(你是谁|你是干什么的|你是干啥的|你能(做什么|干嘛|干啥|帮什么忙)|介绍一下你(自己)?|what can you do|who are you)(呀|啊|呢|吗)?[，。,.!！?？\s]*$/i,
+    // 结束 / 纯闲聊
+    /^((先这样|就到这(里)?|结束|再见|拜拜|回见|下次再说|没了|没事了|随便聊聊|随便说点什么|聊聊|聊聊天)(吧|啦|了|哟)?|bye|goodbye|see you|ok bye)$/i,
+];
+
+/** 判断用户最新消息是否为「简单寒暄/闲聊」：是则单轮直接作答，不发技能检索请求 */
+function isSimpleChatMessage(text: string): boolean {
+    const t = (text || "").trim();
+    if (!t || t.length > 30) return false;
+    return SIMPLE_CHAT_PATTERNS.some((re) => re.test(t));
 }
 /**
  * 检索站点（技能用）：关键词匹配站点名称/描述/分组名，tag 额外按分组名过滤；
@@ -3080,7 +3145,7 @@ interface ExportedHandler {
 
 // 声明Cloudflare Workers的执行上下文类型
 interface ExecutionContext {
-    waitUntil(promise: Promise<any>): void;
+    waitUntil(promise: Promise<unknown>): void;
     passThroughOnException(): void;
 }
 
@@ -3134,12 +3199,13 @@ async function checkLinksConcurrent(urls: string[], concurrency: number = 5): Pr
                 } else {
                     results.push({ url, status: 'error', statusCode: response.status, duration });
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const err = error as Partial<Error>;
                 const duration = Date.now() - startTime;
-                if (error.name === 'AbortError') {
+                if (err.name === 'AbortError') {
                     results.push({ url, status: 'timeout', error: '请求超时', duration });
                 } else {
-                    results.push({ url, status: 'error', error: error.message || '未知错误', duration });
+                    results.push({ url, status: 'error', error: err.message || '未知错误', duration });
                 }
             }
         }

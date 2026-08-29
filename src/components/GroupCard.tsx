@@ -3,7 +3,9 @@ import { Site, Group } from '../API/http';
 import SiteCard from './SiteCard';
 import { GroupWithSites } from '../types';
 import EditGroupDialog from './EditGroupDialog';
-import { useContextMenu, ContextMenuPopper, groupContextActions } from './ContextMenu';
+import { useContextMenu } from './useContextMenu';
+import { ContextMenuPopper } from './ContextMenu';
+import { groupContextActions } from './ContextMenuActions';
 import {
   DndContext,
   closestCenter,
