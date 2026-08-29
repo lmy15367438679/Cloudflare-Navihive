@@ -12,6 +12,13 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Premium 质感：顶部柔和光晕渐变（光从上方洒下），静态背景一次绘制、滚动时纯 GPU
+     合成，零 invalidate。浅色=白光晕褪至灰底；深色=微亮顶光褪至纯黑，增加空间深度。 */
+  background-image: radial-gradient(
+    ellipse 120% 50% at 50% -10%,
+    var(--color-surface) 0%,
+    var(--color-canvas) 60%
+  );
 }
 
 /* 长单词/URL 换行，避免横向溢出破坏布局 */

@@ -39,13 +39,14 @@ export function createAppTheme(darkMode: boolean) {
     },
     typography: {
       fontFamily: tokens.font.body,
-      h1: { fontFamily: tokens.font.heading, fontWeight: 700 },
-      h2: { fontFamily: tokens.font.heading, fontWeight: 700 },
+      h1: { fontFamily: tokens.font.heading, fontWeight: 700, letterSpacing: '-0.02em' },
+      h2: { fontFamily: tokens.font.heading, fontWeight: 700, letterSpacing: '-0.02em' },
       h3: {
         fontFamily: tokens.font.heading,
         fontWeight: 700,
         fontSize: '1.5rem',
         lineHeight: 1.35,
+        letterSpacing: '-0.01em',
         textWrap: 'balance' as const,
       },
       h4: {
@@ -53,6 +54,7 @@ export function createAppTheme(darkMode: boolean) {
         fontWeight: 600,
         fontSize: '1.25rem',
         lineHeight: 1.4,
+        letterSpacing: '-0.01em',
         textWrap: 'balance' as const,
       },
       h5: {
@@ -60,12 +62,14 @@ export function createAppTheme(darkMode: boolean) {
         fontWeight: 600,
         fontSize: '1.125rem',
         lineHeight: 1.4,
+        letterSpacing: '-0.005em',
       },
       h6: {
         fontFamily: tokens.font.heading,
         fontWeight: 600,
         fontSize: '1rem',
         lineHeight: 1.5,
+        letterSpacing: '-0.005em',
       },
       subtitle1: { fontWeight: 600 },
       subtitle2: { fontWeight: 600 },

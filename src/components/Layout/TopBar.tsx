@@ -51,8 +51,11 @@ export default function TopBar({
         justifyContent: 'space-between',
         height: 'var(--topbar-height)',
         px: 2,
-        bgcolor: 'var(--color-canvas)',
+        // 顶栏用 surface（比 canvas 更亮）+ 静态阴影创造「浮于内容之上」的层次感，
+        // 区别于此前与页面同色的扁平顶栏；静态阴影滚动时不 invalidate，性能安全。
+        bgcolor: 'var(--color-surface)',
         borderBottom: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-sm)',
         position: 'sticky',
         top: 0,
         zIndex: 1100,

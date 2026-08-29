@@ -166,10 +166,14 @@ const SiteCard = memo(function SiteCard({
         // hover 仅在编辑模式启用且瞬时变色（无 transition）：浏览模式（访客滚动书签）
         // 完全无 hover 视觉变化 → 滚动时零 tile invalidate，Chrome 纯 GPU 平移即流畅。
         minHeight: 56,
+        // 静态柔和阴影：创造 Z 轴悬浮层次（premium 质感）。静态 box-shadow 由 Chrome
+        // 一次性绘制为 tile，滚动时不触发 invalidate（区别于 hover 过渡），性能安全。
+        boxShadow: 'var(--shadow-sm)',
         ...(viewMode === 'edit'
           ? {
               '&:hover': {
                 bgcolor: 'var(--color-card-hover)',
+                boxShadow: 'var(--shadow-md)',
               },
             }
           : {}),

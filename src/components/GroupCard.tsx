@@ -357,6 +357,13 @@ const GroupCard = memo(function GroupCard({
         p: { xs: 2, sm: 3 },
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
+        // 分组卡数量少（几组），可用 hover 阴影过渡强化层次反馈（preminum 悬浮感）
+        boxShadow: 'var(--shadow-sm)',
+        transition: 'box-shadow 200ms ease, border-color 200ms ease',
+        '&:hover': {
+          boxShadow: 'var(--shadow-md)',
+          borderColor: 'var(--color-border-strong)',
+        },
       }}
     >
       <Box

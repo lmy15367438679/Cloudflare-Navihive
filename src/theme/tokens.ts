@@ -28,8 +28,8 @@ export const tokens = {
     warning: '#F59E0B',
     info: '#38BDF8',
     muted: '#94A3B8',
-    border: '#334155', // 弱分隔线
-    borderStrong: '#475569', // 强调分隔线 / 焦点边框
+    border: 'rgba(148, 163, 184, 0.15)', // 柔和低透边框（与浅色一致的 premium 质感）
+    borderStrong: 'rgba(148, 163, 184, 0.28)',
     focusRing: '#22C55E', // 键盘焦点环
     overlay: 'rgba(2, 6, 23, 0.55)', // 模态 scrim
   },
@@ -47,8 +47,8 @@ export const tokens = {
     cardHover: '#F8FAFC',
     elevated: '#FFFFFF',
     elevatedHover: '#F8FAFC',
-    border: '#E2E8F0',
-    borderStrong: '#CBD5E1',
+    border: 'rgba(15, 23, 42, 0.08)', // 柔和低透边框（premium 质感，替代生硬实色）
+    borderStrong: 'rgba(15, 23, 42, 0.14)',
     muted: '#64748B',
     accent: '#15803D', // 浅色主色（绿-700，白底对比度 ≥4.5:1）
     accentHover: '#166534',
@@ -67,9 +67,9 @@ export const tokens = {
       disabled: '#94A3B8',
       onAccent: '#FFFFFF',
     },
-    shadowSm: '0 1px 2px rgba(15, 23, 42, 0.05)',
-    shadowMd: '0 4px 10px rgba(15, 23, 42, 0.08)',
-    shadowLg: '0 12px 28px rgba(15, 23, 42, 0.12)',
+    shadowSm: '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06)',
+    shadowMd: '0 4px 8px rgba(15, 23, 42, 0.04), 0 8px 16px rgba(15, 23, 42, 0.06)',
+    shadowLg: '0 8px 16px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.08)',
   },
   radius: {
     sm: '6px',
@@ -140,9 +140,9 @@ export const cssVariables = `
   --spacing-8: ${tokens.spacing[8]};
   --spacing-12: ${tokens.spacing[12]};
   --spacing-16: ${tokens.spacing[16]};
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.35), 0 16px 32px rgba(0, 0, 0, 0.3);
   --sidebar-width: ${tokens.layout.sidebarWidth};
   --topbar-height: ${tokens.layout.topbarHeight};
 }
