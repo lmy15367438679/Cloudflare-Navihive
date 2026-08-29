@@ -112,6 +112,11 @@ const mockConfigs: Record<string, string> = {
   'site.compactMode': 'false',
   'site.lazyLoadImages': 'false',
   'site.imageCache': 'false',
+  // AI 相关（与 App.tsx DEFAULT_CONFIGS 保持一致）
+  'ai.enabled': 'false',
+  'ai.models': '[]',
+  'ai.toolsEnabled': 'true',
+  'ai.tokenBudget': '2600',
 };
 
 // 模拟API实现
@@ -611,6 +616,8 @@ export class MockNavigationClient {
     model: string;
     models: string[];
     systemPrompt: string;
+    toolsEnabled: boolean;
+    tokenBudget: number;
     apiKey: string;
   } = {
     enabled: false,
@@ -618,8 +625,16 @@ export class MockNavigationClient {
     model: '',
     models: [],
     systemPrompt: '',
+    toolsEnabled: true,
+    tokenBudget: 2600,
     apiKey: '',
   };
+
+  /**
+   * 模拟「上游不支持函数调用」：置为 true 时 aiChat 会走降级路径
+   * （等价于真实模式下上游对 tools 参数报错、worker 自动重试无工具 + 摘要注入）
+   */
+  private mockToolsUnsupported: boolean = false;
 
   async getAISettings(): Promise<AISettings> {
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -630,6 +645,8 @@ export class MockNavigationClient {
       model: s.model,
       models: s.models,
       systemPrompt: s.systemPrompt,
+      toolsEnabled: s.toolsEnabled,
+      tokenBudget: s.tokenBudget,
       hasKey: Boolean(s.apiKey),
       maskedKey: s.apiKey ? `****${s.apiKey.slice(-4)}` : '',
     };
@@ -665,22 +682,203 @@ export class MockNavigationClient {
     if (data.apiKey !== undefined && data.apiKey.trim() !== '') {
       s.apiKey = data.apiKey.trim();
     }
+    if (data.toolsEnabled !== undefined) {
+      s.toolsEnabled = data.toolsEnabled;
+      mockConfigs['ai.toolsEnabled'] = data.toolsEnabled ? 'true' : 'false';
+    }
+    if (data.tokenBudget !== undefined && Number.isFinite(data.tokenBudget)) {
+      s.tokenBudget = Math.min(8000, Math.max(1000, Math.round(data.tokenBudget)));
+      mockConfigs['ai.tokenBudget'] = String(s.tokenBudget);
+    }
     mockConfigs['ai.enabled'] = s.enabled ? 'true' : 'false';
     return { success: true, message: 'AI 设置已保存' };
   }
 
   async aiChat(messages: AIMessage[], model?: string): Promise<AIChatResponse> {
     await new Promise((resolve) => setTimeout(resolve, 600));
-    if (this.mockAISettings.enabled && this.mockAISettings.apiKey) {
-      const last = messages[messages.length - 1];
-      const activeModel =
-        model?.trim() || this.mockAISettings.model || this.mockAISettings.models[0] || 'mock';
+    if (!this.mockAISettings.enabled || !this.mockAISettings.apiKey) {
+      return { success: false, message: 'AI 尚未配置，请先在设置中填写 Base URL 与 API 密钥' };
+    }
+    const activeModel =
+      model?.trim() || this.mockAISettings.model || this.mockAISettings.models[0] || 'mock';
+    const last = messages[messages.length - 1];
+    const userText = (last?.content ?? '').trim();
+
+    // 技能总开关关闭：走「站点库摘要注入」兜底（与真实 worker 的知识注入路径一致）
+    if (!this.mockAISettings.toolsEnabled) {
       return {
         success: true,
-        reply: `（模拟回复）你好，我是 NaviHive 助手。你刚才说的是：「${last?.content || ''}」。当前为开发模拟模式，接入真实 AI 后即可获得智能回答。`,
+        reply: this.buildFallbackReply(userText, false),
         model: activeModel,
       };
     }
-    return { success: false, message: 'AI 尚未配置，请先在设置中填写 Base URL 与 API 密钥' };
+
+    // 模拟上游不支持函数调用：降级为「无工具 + 摘要注入」
+    if (this.mockToolsUnsupported) {
+      return {
+        success: true,
+        reply: this.buildFallbackReply(userText, true),
+        model: activeModel,
+        skillsUsed: [],
+      };
+    }
+
+    const skill = this.detectSkill(userText);
+    if (skill) {
+      const rows = this.runMockSkill(skill.name, skill.args);
+      return {
+        success: true,
+        reply: `（模拟技能调用：${skill.name}）\n${this.renderSkillReply(
+          skill.name,
+          rows,
+          skill.args
+        )}`,
+        model: activeModel,
+        skillsUsed: [skill.name],
+      };
+    }
+
+    // 普通闲聊：保持原有模拟回复
+    return {
+      success: true,
+      reply: `（模拟回复）你好，我是 NaviHive 助手。你刚才说的是：「${userText}」。当前为开发模拟模式，接入真实 AI 后即可获得智能回答。`,
+      model: activeModel,
+    };
+  }
+  /** 规则式意图识别：从用户提问中判断应调用的技能（模拟真实模型的 function_calls） */
+  private detectSkill(userText: string): { name: string; args: Record<string, unknown> } | null {
+    const t = userText.toLowerCase();
+    if (/有哪些分组|分组有哪些|怎么分类|哪些分类|什么分类/.test(t)) {
+      return { name: 'list_groups', args: {} };
+    }
+    if (/推荐|热门|排行|最棒|最好的|Top /.test(t)) {
+      return { name: 'get_site_rankings', args: {} };
+    }
+    const groupMatch = mockGroups.find(
+      (g) => g.is_public !== 0 && t.includes(g.name.toLowerCase())
+    );
+    if (groupMatch) {
+      return { name: 'get_group_sites', args: { groupName: groupMatch.name } };
+    }
+    if (/分组|站点|网站|分类/.test(t)) {
+      return { name: 'list_groups', args: {} };
+    }
+    const keyword = t
+      .replace(
+        /^(帮我|请|想|要|能)?(搜索|搜一|搜|查找|找一下|找|查询|查一下|查|看看|有没有|有哪些)/,
+        ''
+      )
+      .trim();
+    if (keyword) {
+      return { name: 'search_sites', args: { keyword } };
+    }
+    return null;
+  }
+
+  /** 内存版技能执行器：只读公开分组下的公开站点（与 worker 可见性策略一致） */
+  private runMockSkill(
+    name: string,
+    args: Record<string, unknown>
+  ): Array<{ name: string; url: string; description: string; group_name: string }> {
+    const publicGroupIds = new Set(mockGroups.filter((g) => g.is_public !== 0).map((g) => g.id));
+    const visible = mockSites.filter((s) => publicGroupIds.has(s.group_id) && s.is_public !== 0);
+    const groupOf = (siteId: number | undefined) =>
+      mockGroups.find((g) => g.id === siteId)?.name ?? '';
+    const toRows = (list: Site[]) =>
+      list
+        .slice()
+        .sort((a, b) => a.order_num - b.order_num)
+        .slice(0, this.toLimit(args.limit, 10))
+        .map((s) => ({
+          name: s.name,
+          url: s.url,
+          description: s.description || '',
+          group_name: groupOf(s.id),
+        }));
+
+    const groupName =
+      typeof args.groupName === 'string'
+        ? args.groupName
+        : typeof args.tag === 'string'
+          ? args.tag
+          : '';
+    const keyword = typeof args.keyword === 'string' ? args.keyword : '';
+
+    if (name === 'get_group_sites') {
+      const g = mockGroups.find(
+        (x) => x.is_public !== 0 && x.name.toLowerCase().includes(groupName.toLowerCase())
+      );
+      if (!g) return [];
+      return toRows(visible.filter((s) => s.group_id === g.id));
+    }
+    if (name === 'get_site_rankings') {
+      return toRows(visible);
+    }
+    // search_sites / list_groups 都按关键词检索站点（list_groups 在渲染层单列分组）
+    const kw = (keyword || groupName).toLowerCase();
+    return toRows(
+      kw
+        ? visible.filter((s) =>
+            `${s.name} ${s.description} ${groupOf(s.id)}`.toLowerCase().includes(kw)
+          )
+        : visible
+    );
+  }
+
+  /** 渲染技能返回：分组列表单列，站点列表统一为编号列表 */
+  private renderSkillReply(
+    name: string,
+    rows: Array<{ name: string; url: string; description: string; group_name: string }>,
+    args: Record<string, unknown>
+  ): string {
+    if (name === 'list_groups') {
+      const groups = mockGroups.filter((g) => g.is_public !== 0);
+      if (groups.length === 0) return '站内还没有任何分组';
+      return `站内全部分组（${groups.length} 个）：\n${groups
+        .map((g) => {
+          const count = mockSites.filter((s) => s.group_id === g.id && s.is_public !== 0).length;
+          return `- ${g.name}（${count} 个站点）`;
+        })
+        .join('\n')}`;
+    }
+    if (rows.length === 0) {
+      const kw =
+        (args.keyword as string) || (args.groupName as string) || (args.tag as string) || '';
+      return `未找到「${kw || '相关'}」结果，试试「推荐几个网站」或换个关键词？`;
+    }
+    const title =
+      name === 'get_group_sites'
+        ? `分组「${args.groupName || ''}」下的站点`
+        : name === 'get_site_rankings'
+          ? '站内推荐站点排行'
+          : '站点搜索结果';
+    return `${title}：\n${rows
+      .map((r, i) => `${i + 1}. ${r.name}｜${r.description || '暂无描述'}｜${r.url}`)
+      .join('\n')}`;
+  }
+
+  /** 兜底回复：模拟「站点库摘要注入」模式（技能关闭 / 上游不支持时由 worker 采用） */
+  private buildFallbackReply(userText: string, upstreamUnsupported: boolean): string {
+    const top = mockSites
+      .filter(
+        (s) =>
+          s.is_public !== 0 &&
+          mockGroups.find((g) => g.id === s.group_id && g.is_public !== 0) !== undefined
+      )
+      .slice(0, 3)
+      .map((s) => `- ${s.name}：${s.url}`)
+      .join('\n');
+    const mode = upstreamUnsupported
+      ? '（当前所配上游不支持函数调用，已自动降级为站点库摘要模式）'
+      : '（AI 技能已关闭，使用站点库摘要兜底）';
+    return `${mode}\n基于站内站点库，为你推荐当前热门站点：\n${top}\n（用户问题：${userText.slice(
+      0,
+      40
+    )}）`;
+  }
+
+  private toLimit(raw: unknown, def: number): number {
+    const n = typeof raw === 'number' ? raw : def;
+    return Math.max(1, Math.min(20, Math.floor(n)));
   }
 }

@@ -114,6 +114,10 @@ const DEFAULT_CONFIGS = {
   'ai.enabled': 'false',
   // AI 多模型列表（JSON 数组字符串，第一个为默认模型；管理员在设置中维护）
   'ai.models': '[]',
+  // AI 技能总开关（函数调用：站点检索 / 分组查询 / 站内推荐；上游不支持时自动降级）
+  'ai.toolsEnabled': 'true',
+  // 对话上下文 Token 预算（节省 token：超出预算的历史消息将被截断）
+  'ai.tokenBudget': '2600',
 };
 
 function App() {

@@ -72,12 +72,16 @@ export default function AIAssistant({
     model: '',
     models: [],
     systemPrompt: '',
+    toolsEnabled: true,
+    tokenBudget: 2600,
     hasKey: false,
     maskedKey: '',
   });
   const [apiKey, setApiKey] = useState('');
   // 设置面板中「添加模型」的输入框
   const [modelInput, setModelInput] = useState('');
+  // 设置面板中「Token 预算」的输入框（字符串态，保存时再解析/收敛）
+  const [budgetInput, setBudgetInput] = useState('2600');
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -102,6 +106,7 @@ export default function AIAssistant({
           .getAISettings()
           .then((s) => {
             setSettings(s);
+            setBudgetInput(String(s.tokenBudget));
             setView(s.enabled ? 'chat' : 'settings');
           })
           .catch(() => setSaveMsg({ type: 'error', text: '读取 AI 设置失败，请稍后重试' }))
@@ -181,6 +186,8 @@ export default function AIAssistant({
       baseUrl: settings.baseUrl,
       models: settings.models,
       systemPrompt: settings.systemPrompt,
+      toolsEnabled: settings.toolsEnabled,
+      tokenBudget: Math.min(8000, Math.max(1000, Math.round(Number(budgetInput) || 2600))),
       // 留空 = 保持服务端已保存的密钥不变
       apiKey: apiKey || undefined,
     });
@@ -309,6 +316,40 @@ export default function AIAssistant({
                     />
                   }
                   label='启用 AI 辅助'
+                />
+
+                <Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={settings.toolsEnabled}
+                        onChange={(e) =>
+                          setSettings({ ...settings, toolsEnabled: e.target.checked })
+                        }
+                        color='primary'
+                      />
+                    }
+                    label='启用 AI 技能（函数调用）'
+                  />
+                  <Typography
+                    variant='caption'
+                    sx={{ color: 'var(--text-secondary)', display: 'block', mx: 1.5 }}
+                  >
+                    内置技能：search_sites（搜站）、get_group_sites（分组站点）、
+                    get_site_rankings（站内推荐）、list_groups（分组目录）。上游接口不支持技能时，
+                    将自动降级为站点库摘要模式，保证基础问答可用。
+                  </Typography>
+                </Box>
+
+                <TextField
+                  label='上下文 Token 预算'
+                  type='number'
+                  inputProps={{ min: 1000, max: 8000, step: 100 }}
+                  fullWidth
+                  size='small'
+                  value={budgetInput}
+                  onChange={(e) => setBudgetInput(e.target.value)}
+                  helperText='超出预算的历史消息将被截断以节省 token（1000–8000，默认 2600）'
                 />
 
                 <TextField

@@ -43,3 +43,7 @@ INSERT INTO configs (key, value) VALUES ('ai.baseUrl', '');
 INSERT INTO configs (key, value) VALUES ('ai.model', '');
 -- 多模型列表：JSON 数组字符串（同一 Base URL 下可配置多个模型，第一个为默认），由 Worker 保存时规范化
 INSERT INTO configs (key, value) VALUES ('ai.models', '[]');
+-- AI 技能总开关（函数调用：站点检索 / 分组查询 / 站内推荐；上游不支持时自动降级为站点库摘要注入）
+INSERT INTO configs (key, value) VALUES ('ai.toolsEnabled', 'true');
+-- 对话上下文 Token 预算（节省 token：超出预算的历史消息将被截断）
+INSERT INTO configs (key, value) VALUES ('ai.tokenBudget', '2600');

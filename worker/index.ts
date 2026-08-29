@@ -1286,7 +1286,7 @@ export default {
 
                 // 获取 AI 设置（密钥明文与密文均不下发，仅返回是否已配置 + 掩码）
                 else if (path === "ai/settings" && method === "GET") {
-                    const [enabled, baseUrl, model, systemPrompt, storedKey, rawModels] =
+                    const [enabled, baseUrl, model, systemPrompt, storedKey, rawModels, rawToolsEnabled, rawTokenBudget] =
                         await Promise.all([
                             api.getConfig("ai.enabled"),
                             api.getConfig("ai.baseUrl"),
@@ -1294,6 +1294,8 @@ export default {
                             api.getConfig("ai.systemPrompt"),
                             api.getConfig("ai.apiKey"),
                             api.getConfig("ai.models"),
+                            api.getConfig("ai.toolsEnabled"),
+                            api.getConfig("ai.tokenBudget"),
                         ]);
 
                     // 解析多模型列表（config 中以 JSON 数组字符串存储）
@@ -1330,6 +1332,8 @@ export default {
                             model: defaultModel || (models[0] || ""),
                             models,
                             systemPrompt: systemPrompt || "",
+                            toolsEnabled: rawToolsEnabled !== "false",
+                            tokenBudget: parseTokenBudget(rawTokenBudget),
                             hasKey: Boolean(storedKey),
                             maskedKey,
                         },
@@ -1415,6 +1419,16 @@ export default {
                         }
                         await api.setConfig("ai.apiKey", encrypted);
                     }
+                    if (data.toolsEnabled !== undefined) {
+                        await api.setConfig(
+                            "ai.toolsEnabled",
+                            data.toolsEnabled ? "true" : "false"
+                        );
+                    }
+                    if (data.tokenBudget !== undefined && Number.isFinite(data.tokenBudget)) {
+                        const budget = Math.min(8000, Math.max(1000, data.tokenBudget));
+                        await api.setConfig("ai.tokenBudget", String(budget));
+                    }
 
                     return createJsonResponse(
                         { success: true, message: "AI 设置已保存" },
@@ -1462,16 +1476,22 @@ export default {
                         );
                     }
 
-                    const [baseUrl, model, storedKey, customPrompt, rawModels] = await Promise.all([
-                        api.getConfig("ai.baseUrl"),
-                        api.getConfig("ai.model"),
-                        api.getConfig("ai.apiKey"),
-                        api.getConfig("ai.systemPrompt"),
-                        api.getConfig("ai.models"),
-                    ]);
+                    const [baseUrl, model, storedKey, customPrompt, rawModels, rawToolsEnabled, rawTokenBudget] =
+                        await Promise.all([
+                            api.getConfig("ai.baseUrl"),
+                            api.getConfig("ai.model"),
+                            api.getConfig("ai.apiKey"),
+                            api.getConfig("ai.systemPrompt"),
+                            api.getConfig("ai.models"),
+                            api.getConfig("ai.toolsEnabled"),
+                            api.getConfig("ai.tokenBudget"),
+                        ]);
 
                     const trimmedBaseUrl = (baseUrl || "").trim();
                     const defaultModel = (model || "").trim();
+                    // AI 技能开关（默认开启）与上下文 Token 预算（节省 token 用）
+                    const toolsEnabled = rawToolsEnabled !== "false";
+                    const tokenBudget = parseTokenBudget(rawTokenBudget);
 
                     // 解析管理员配置的模型白名单（ai.models JSON 数组）
                     let configuredModels: string[] = [];
@@ -1535,97 +1555,243 @@ export default {
                         );
                     }
 
-                    // 组装 OpenAI 兼容请求：内置/自定义系统提示词 + 对话历史（保留最近 20 条）
-                    const messages: { role: string; content: string }[] = [
-                        { role: "system", content: customPrompt || DEFAULT_AI_SYSTEM_PROMPT },
-                        ...data.messages
-                            .filter(
-                                (m) =>
-                                    m &&
-                                    (m.role === "user" || m.role === "assistant") &&
-                                    typeof m?.content === "string" &&
-                                    (m.content as string).length <= 8000
-                            )
-                            .slice(-20)
-                            .map((m) => ({
-                                role: m?.role as string,
-                                content: (m?.content as string) || "",
-                            })),
-                    ];
-                    if (messages.length <= 1) {
+                    // 组装 OpenAI 兼容请求：系统提示词 + 基于 Token 预算的历史窗口
+                    //  ① 单条最长 8000 字符、最多取最近 20 条
+                    //  ② Token 预算：estimateTokens 估算，超出 tokenBudget 时从最旧处截断（节省 token）
+                    //  ③ 系统提示词恒定放在最前（利于上游 prompt caching），动态内容追加在其后
+                    const filtered = data.messages
+                        .filter(
+                            (m) =>
+                                m &&
+                                (m.role === "user" || m.role === "assistant") &&
+                                typeof m?.content === "string" &&
+                                (m.content as string).length <= 8000
+                        )
+                        .slice(-20)
+                        .map((m) => ({
+                            role: (m?.role as "user" | "assistant") || "user",
+                            content: (m?.content as string) || "",
+                        }));
+                    if (filtered.length === 0) {
                         return createJsonResponse(
                             { success: false, message: "消息内容不能为空" },
                             request,
                             { status: 400 }
                         );
                     }
+                    const systemContent = customPrompt || DEFAULT_AI_SYSTEM_PROMPT;
+                    const historyTrim = trimHistoryWithinBudget(
+                        filtered,
+                        tokenBudget,
+                        systemContent
+                    );
+                    let systemPromptFinal = systemContent;
+                    if (historyTrim.dropped > 0) {
+                        systemPromptFinal += `\n\n（提示：为节省上下文占用，更早的 ${historyTrim.dropped} 条对话已被截断；如用户提及更早内容，请如实说明无法查看。）`;
+                    }
+                    let messagesForLLM: ChatMessage[] = [
+                        { role: "system", content: systemPromptFinal },
+                        ...historyTrim.history,
+                    ];
 
                     const endpoint = trimmedBaseUrl.replace(/\/+$/, "") + "/chat/completions";
 
                     try {
                         const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s 响应超时
+                        // 技能调用可能产生多轮上游请求，单次对话总超时 90s
+                        const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-                        const upstream = await fetch(endpoint, {
-                            method: "POST",
-                            signal: controller.signal,
-                            headers: {
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${secretKey}`,
-                            },
-                            body: JSON.stringify({
+                        // ---- AI 技能（函数调用）循环：最多 MAX_TOOL_ROUNDS 轮 ----
+                        const MAX_TOOL_ROUNDS = 3;
+                        let toolsActive = toolsEnabled;
+                        const usedSkills: string[] = [];
+                        let finalReply: string | null = null;
+
+                        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+                            const body: ChatCompletionBody = {
                                 model: trimmedModel,
-                                messages,
+                                messages: messagesForLLM,
                                 temperature: 0.7,
                                 stream: false,
-                            }),
-                        });
+                            };
+                            if (toolsActive) {
+                                body.tools = AI_SKILL_TOOLS;
+                                body.tool_choice = "auto";
+                            }
+
+                            log({
+                                level: "info",
+                                message: `AI 对话请求（第 ${round + 1} 轮${toolsActive ? "，启用技能" : "，无技能模式"}）`,
+                                path: "/api/ai/chat",
+                                method: "POST",
+                                details: {
+                                    model: trimmedModel,
+                                    messageCount: messagesForLLM.length,
+                                },
+                            });
+
+                            const upstream = await fetch(endpoint, {
+                                method: "POST",
+                                signal: controller.signal,
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${secretKey}`,
+                                },
+                                body: JSON.stringify(body),
+                            });
                         clearTimeout(timeoutId);
 
                         if (!upstream.ok) {
-                            let detail = "";
-                            try {
-                                const errBody = (await upstream.json()) as {
-                                    error?: { message?: string };
-                                };
-                                detail = errBody.error?.message || "";
-                            } catch {
-                                detail = (await upstream.text()).slice(0, 300);
+                                let detail = "";
+                                try {
+                                    const errBody = (await upstream.json()) as {
+                                        error?: { message?: string };
+                                    };
+                                    detail = errBody.error?.message || "";
+                                } catch {
+                                    detail = (await upstream.text()).slice(0, 300);
+                                }
+                                // 兼容性：上游不支持函数调用时，自动降级为「无工具 + 站点库摘要注入」
+                                if (toolsActive && isToolsUnsupportedError(upstream.status, detail)) {
+                                    log({
+                                        level: "warn",
+                                        message: "上游接口不支持函数调用技能，已自动降级为站点库摘要模式",
+                                        path: "/api/ai/chat",
+                                        method: "POST",
+                                        details: detail,
+                                    });
+                                    toolsActive = false;
+                                    const latestUser = [...filtered]
+                                        .reverse()
+                                        .find((m) => m.role === "user");
+                                    if (latestUser) {
+                                        const knowledge = await buildKnowledgeContext(env, latestUser.content);
+                                        if (knowledge) {
+                                            systemPromptFinal += knowledge;
+                                            messagesForLLM = [
+                                                { role: "system", content: systemPromptFinal },
+                                                ...historyTrim.history,
+                                            ];
+                                        }
+                                    }
+                                    continue;
+                                }
+                                log({
+                                    level: "warn",
+                                    message: `AI 上游接口返回错误: ${upstream.status}`,
+                                    path: "/api/ai/chat",
+                                    method: "POST",
+                                    details: detail,
+                                });
+                                clearTimeout(timeoutId);
+                                return createJsonResponse(
+                                    {
+                                        success: false,
+                                        message:
+                                            `AI 服务返回错误（${upstream.status}）：` +
+                                            (detail || "无详细信息"),
+                                    },
+                                    request,
+                                    { status: upstream.status >= 500 ? 502 : 400 }
+                                );
                             }
-                            log({
-                                level: "warn",
-                                message: `AI 上游接口返回错误: ${upstream.status}`,
-                                path: "/api/ai/chat",
-                                method: "POST",
-                                details: detail,
-                            });
-                            return createJsonResponse(
-                                {
-                                    success: false,
-                                    message:
-                                        `AI 服务返回错误（${upstream.status}）：` +
-                                        (detail || "无详细信息"),
-                                },
-                                request,
-                                { status: upstream.status >= 500 ? 502 : 400 }
-                            );
-                        }
 
                         const upstreamJson = (await upstream.json()) as {
-                            choices?: { message?: { content?: string } }[];
-                        };
-                        const reply = upstreamJson.choices?.[0]?.message?.content?.trim() || "";
-                        if (!reply) {
-                            return createJsonResponse(
-                                { success: false, message: "AI 返回内容为空" },
-                                request,
-                                { status: 502 }
+                                choices?: {
+                                    message?: {
+                                        content?: string;
+                                        tool_calls?: {
+                                            id?: string;
+                                            type?: string;
+                                            function?: { name?: string; arguments?: string };
+                                        }[];
+                                    };
+                                }[];
+                            };
+                            const assistantMessage = upstreamJson.choices?.[0]?.message;
+                            const toolCalls = (assistantMessage?.tool_calls || []).filter(
+                                (tc) =>
+                                    tc?.function?.name && typeof tc.function.arguments === "string"
                             );
+                            const reply = assistantMessage?.content?.trim() || "";
+
+                            // 有技能调用：逐个执行并把结果回传给模型，进入下一轮
+                            if (toolsActive && toolCalls.length > 0) {
+                                messagesForLLM.push({
+                                    role: "assistant",
+                                    content: assistantMessage?.content || "",
+                                    tool_calls: toolCalls.map((tc, idx) => ({
+                                        id: tc.id || `call_${round}_${idx}`,
+                                        type: "function",
+                                        function: {
+                                            name: tc.function!.name!,
+                                            arguments: tc.function!.arguments!,
+                                        },
+                                    })),
+                                });
+                                for (const [idx, tc] of toolCalls.entries()) {
+                                    const name = tc.function!.name!;
+                                    let result: string;
+                                    try {
+                                        let args: Record<string, unknown> = {};
+                                        try {
+                                            const parsed = JSON.parse(
+                                                tc.function?.arguments || "{}"
+                                            );
+                                            if (parsed && typeof parsed === "object") {
+                                                args = parsed as Record<string, unknown>;
+                                            }
+                                        } catch {
+                                            args = {};
+                                        }
+                                        result = await executeAISkill(env, name, args);
+                                        if (!usedSkills.includes(name)) usedSkills.push(name);
+                                    } catch (error) {
+                                        result = `技能「${name}」执行失败：${
+                                            error instanceof Error ? error.message : "未知错误"
+                                        }`;
+                                    }
+                                    log({
+                                        level: "info",
+                                        message: `AI 技能执行: ${name}`,
+                                        path: "/api/ai/chat",
+                                        method: "POST",
+                                        details: (result || "").slice(0, 200),
+                                    });
+                                    messagesForLLM.push({
+                                        role: "tool",
+                                        tool_call_id: tc.id || `call_${round}_${idx}`,
+                                        content: result,
+                                    });
+                                }
+                                continue;
+                            }
+
+                            // 无技能调用：本轮产出即最终回答
+                            if (reply) {
+                                finalReply = reply;
+                                break;
+                            }
+                            // 内容为空：交给下一轮重试，最终由循环后兜底
                         }
 
+                        clearTimeout(timeoutId);
+
+                        if (finalReply) {
+                            return createJsonResponse(
+                                {
+                                    success: true,
+                                    reply: finalReply,
+                                    model: trimmedModel,
+                                    skillsUsed: usedSkills,
+                                },
+                                request
+                            );
+                        }
                         return createJsonResponse(
-                            { success: true, reply, model: trimmedModel },
-                            request
+                            { success: false, message: "AI 未能生成有效回答，请重试" },
+                            request,
+                            { status: 502 }
                         );
                     } catch (error) {
                         const message =
@@ -1791,7 +1957,410 @@ interface AiSettingsInput {
     model?: string;
     models?: string[];
     systemPrompt?: string;
+    toolsEnabled?: boolean;
+    tokenBudget?: number;
     apiKey?: string;
+}
+// ============================================================================
+// AI 技能（函数调用）层：站内检索 / 分组查询 / 排行推荐 + 省 token 历史裁剪 + 降级兜底
+// ============================================================================
+
+/** OpenAI 兼容消息（含技能调用的 assistant 消息与 tool 结果消息） */
+interface ChatMessage {
+    role: "system" | "user" | "assistant" | "tool";
+    content: string;
+    tool_calls?: {
+        id: string;
+        type: string;
+        function: { name: string; arguments: string };
+    }[];
+    tool_call_id?: string;
+}
+
+/** 发给上游 /chat/completions 的请求体（tools 由技能开关决定是否附带） */
+interface ChatCompletionBody {
+    model: string;
+    messages: ChatMessage[];
+    temperature: number;
+    stream: false;
+    tools?: unknown;
+    tool_choice?: "auto" | "none" | "required";
+}
+
+/** 技能（函数）定义：OpenAI 兼容 schema */
+interface AiToolDefinition {
+    type: "function";
+    function: {
+        name: string;
+        description: string;
+        parameters: {
+            type: "object";
+            properties?: Record<string, unknown>;
+            required?: string[];
+            additionalProperties?: boolean;
+        };
+    };
+}
+
+/** 技能清单：模型可调用的站内查询函数（当前 schema 无点击统计表，排行按站内排序字段取前列） */
+const AI_SKILL_TOOLS: AiToolDefinition[] = [
+    {
+        type: "function",
+        function: {
+            name: "search_sites",
+            description:
+                "按关键词/标签检索站内站点库；关键词为空时列出全站站点。适用于“有没有 xx 网站 / 帮我搜下 xx / 有哪些支持 xx 标签的站点”这类问题。",
+            parameters: {
+                type: "object",
+                properties: {
+                    keyword: {
+                        type: "string",
+                        description: "搜索关键词，可匹配站点名称/描述/分组名；可留空表示列出全部站点",
+                    },
+                    tag: {
+                        type: "string",
+                        description: "按分组名过滤（例如 常用工具、开发资源）；可留空",
+                    },
+                    limit: {
+                        type: "number",
+                        description: "返回条数上限，默认 10，最大 20",
+                    },
+                },
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_group_sites",
+            description:
+                "获取指定分组下的站点列表。适用于“xx 分组下有哪些网站 / 把 xx 分组的站点给我看看”。",
+            parameters: {
+                type: "object",
+                properties: {
+                    groupName: {
+                        type: "string",
+                        description: "分组名称（支持模糊匹配）",
+                    },
+                    limit: {
+                        type: "number",
+                        description: "返回条数上限，默认 10，最大 20",
+                    },
+                },
+                required: ["groupName"],
+                additionalProperties: false,
+            },
+        },
+    },
+{
+        type: "function",
+        function: {
+            name: "get_site_rankings",
+            description:
+                "返回站内站点排行（按站内排序字段列出的靠前站点，人工维护的高优先级站点优先）。适用于“有哪些热门/推荐的网站 / 推荐几个站点”这类问题。",
+            parameters: {
+                type: "object",
+                properties: {
+                    limit: {
+                        type: "number",
+                        description: "返回条数上限，默认 10，最大 20",
+                    },
+                },
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "list_groups",
+            description:
+                "返回站内全部分组（名称与站点数量）。适用于“这个站有哪些分组 / 站点是怎么分类的 / 有哪些分类”。",
+            parameters: {
+                type: "object",
+                properties: {
+                    limit: {
+                        type: "number",
+                        description: "返回条数上限，默认 30，最大 100",
+                    },
+                },
+                additionalProperties: false,
+            },
+        },
+    },
+];
+/** 估算文本占用的 token 数：CJK 字符按 1 字符 ≈1 token，其余按 4 字符 ≈1 token */
+function estimateTokens(text: string): number {
+    let cjk = 0;
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (
+            (code >= 0x4e00 && code <= 0x9fff) || // CJK 统一表意文字
+            (code >= 0x3400 && code <= 0x4dbf) || // 扩展 A
+            (code >= 0x3000 && code <= 0x303f) || // CJK 标点
+            (code >= 0xff00 && code <= 0xffef) || // 全角字符
+            (code >= 0xac00 && code <= 0xd7af) // 韩文音节
+        ) {
+            cjk++;
+        }
+    }
+    return cjk + Math.ceil((text.length - cjk) / 4);
+}
+
+/** 滑动历史窗口：在 Token 预算内尽量保留靠后的消息（最近优先），最多丢弃 20 条 */
+function trimHistoryWithinBudget(
+    history: { role: "user" | "assistant"; content: string }[],
+    budget: number,
+    systemContent: string
+): { history: { role: "user" | "assistant"; content: string }[]; dropped: number } {
+    if (!Number.isFinite(budget) || budget < 1000 || history.length <= 2) {
+        return { history, dropped: 0 };
+    }
+    const budgetNum = Math.min(8000, Math.round(budget));
+    const est = history.map((m) => estimateTokens(m.content));
+    // 每条消息还有 role/换行等固定包装开销，预留一部分配额
+    const reservedPer = 24;
+    const reservedOthers = est.reduce((sum, n) => sum + Math.min(32, n), 0);
+    const available = Math.max(200, budgetNum - reservedOthers);
+    let total = estimateTokens(systemContent);
+    const kept: { role: "user" | "assistant"; content: string }[] = [];
+    let dropped = 0;
+    for (let i = history.length - 1; i >= 0 && dropped <= 20; i--) {
+        const item = history[i];
+        if (!item) continue;
+        const need = (est[i] ?? 0) + reservedPer;
+        if (total + need > available) {
+            dropped++;
+            continue;
+        }
+        kept.unshift(item);
+        total += need;
+    }
+    if (kept.length === 0) {
+        // 预算极小或单条超预算时，至少保留最后一条（通常是用户最新提问）
+        const lastItem = history[history.length - 1];
+        if (!lastItem) return { history, dropped: 0 };
+        return {
+            history: [lastItem],
+            dropped: history.length - 1,
+        };
+    }
+    const finalDropped = history.length - kept.length;
+    const finalKept =
+        finalDropped <= 20 ? kept : kept.slice(kept.length - (history.length - 20));
+    return {
+        history: finalKept,
+        dropped: history.length - finalKept.length,
+    };
+}
+
+/** 识别上游「不支持函数调用」类错误（404 或 400/422/501 且提示与 tools/function calling 相关） */
+function isToolsUnsupportedError(status: number, detail: string): boolean {
+    if (status === 404) return true;
+    if (status !== 400 && status !== 422 && status !== 501) return false;
+    const d = (detail || "").toLowerCase();
+    return (
+        d.includes("tools") ||
+        d.includes("function call") ||
+        d.includes("function_call") ||
+        d.includes("not supported") ||
+        d.includes("not support") ||
+        d.includes("unknown parameter") ||
+        d.includes("unrecognized") ||
+        d.includes("extra inputs") ||
+        d.includes("unexpected")
+    );
+}
+
+/** 解析 Token 预算配置（D1 中存字符串）：非法时回落到默认值 2600 */
+function parseTokenBudget(raw?: string | null): number {
+    const n = Number(raw || "");
+    return Number.isFinite(n) && n >= 1000 && n <= 8000 ? Math.round(n) : 2600;
+}
+/**
+ * 检索站点（技能用）：关键词匹配站点名称/描述/分组名，tag 额外按分组名过滤；
+ * 可见性策略与 GET /api/sites 未认证分支一致（仅公开分组下的公开站点）。
+ */
+async function searchSites(
+    env: Env,
+    keyword: string,
+    tag: string,
+    limit: number
+): Promise<
+    Array<{ name: string; url: string; description: string; group_name: string }>
+> {
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    if (keyword) {
+        conditions.push("(s.name LIKE ? OR s.description LIKE ? OR g.name LIKE ?)");
+        const like = `%${keyword}%`;
+        params.push(like, like, like);
+    }
+    if (tag) {
+        conditions.push("g.name LIKE ?");
+        params.push(`%${tag}%`);
+    }
+    conditions.push("g.is_public IS NOT 0", "s.is_public IS NOT 0");
+
+    let query = `
+        SELECT s.name, s.url, COALESCE(s.description, '') AS description, g.name AS group_name
+        FROM sites s
+        INNER JOIN groups g ON s.group_id = g.id
+        WHERE ${conditions.join(" AND ")}
+    `;
+    query += ` ORDER BY g.order_num ASC, s.order_num ASC LIMIT ${Math.max(
+        1,
+        Math.min(20, limit)
+    )}`;
+
+    const result = await env.DB.prepare(query)
+        .bind(...params)
+        .all<{
+            name: string;
+            url: string;
+            description: string;
+            group_name: string;
+        }>();
+    return result.results || [];
+}
+
+/** 获取站内推荐站点（按分组/站点排序字段列出的靠前站点，仅公开站点） */
+async function getHotSites(
+    env: Env,
+    limit: number
+): Promise<
+    Array<{
+        name: string;
+        url: string;
+        description: string;
+        group_name: string;
+    }>
+> {
+    const query = `
+        SELECT s.name, s.url, COALESCE(s.description, '') AS description, g.name AS group_name
+        FROM sites s
+        INNER JOIN groups g ON s.group_id = g.id
+        WHERE g.is_public IS NOT 0 AND s.is_public IS NOT 0
+        ORDER BY g.order_num ASC, s.order_num ASC
+        LIMIT ${Math.max(1, Math.min(20, limit))}
+    `;
+    const result = await env.DB.prepare(query).all<{
+        name: string;
+        url: string;
+        description: string;
+        group_name: string;
+    }>();
+    return result.results || [];
+}
+
+/** 全部分组与站点数量（仅公开分组，技能用） */
+async function listSiteGroups(
+    env: Env,
+    limit: number
+): Promise<Array<{ name: string; siteCount: number }>> {
+    const query = `
+        SELECT g.name, COUNT(s.id) AS siteCount
+        FROM groups g
+        LEFT JOIN sites s ON s.group_id = g.id AND s.is_public IS NOT 0
+        WHERE g.is_public IS NOT 0
+        GROUP BY g.id
+        ORDER BY g.order_num ASC
+        LIMIT ${Math.max(1, Math.min(100, limit))}
+    `;
+    const result = await env.DB.prepare(query).all<{ name: string; siteCount: number }>();
+    return result.results || [];
+}
+/** 将技能结果格式化为简短文本（限定行数，控制 token 用量） */
+function formatSkillResult<T extends { name: string }>(
+    title: string,
+    rows: T[],
+    line: (row: T, index: number) => string
+): string {
+    const lines = rows.slice(0, 20).map((row, i) => line(row, i));
+    return `${title}（共 ${rows.length} 条）：\n${lines.join("\n")}`;
+}
+
+/** 执行单个 AI 技能：转换为可回传给模型的文本结果 */
+async function executeAISkill(
+    env: Env,
+    name: string,
+    args: Record<string, unknown>
+): Promise<string> {
+    const kw = typeof args.keyword === "string" ? args.keyword.trim() : "";
+    const tag = typeof args.tag === "string" ? args.tag.trim() : "";
+    const group = typeof args.groupName === "string" ? args.groupName.trim() : "";
+    const rawLimit = typeof args.limit === "number" ? args.limit : 10;
+    const limit = Math.max(1, Math.min(20, Math.floor(rawLimit)));
+
+    if (name === "search_sites") {
+        const rows = await searchSites(env, kw, tag, limit);
+        if (rows.length === 0) {
+            return `搜索「${kw || tag || "全部站点"}」未找到匹配站点`;
+        }
+        return formatSkillResult(
+            "站点搜索结果",
+            rows,
+            (r) => `- ${r.name}（${r.group_name}）｜${r.description || "暂无描述"}｜${r.url}`
+        );
+    }
+    if (name === "get_group_sites") {
+        if (!group) return "请提供要查询的分组名称（groupName）";
+        const rows = await searchSites(env, "", group, limit);
+        if (rows.length === 0) {
+            return `未找到分组「${group}」，可调用 list_groups 查看现有分组`;
+        }
+        return formatSkillResult(
+            `分组「${group}」的站点`,
+            rows,
+            (r) => `- ${r.name}｜${r.description || "暂无描述"}｜${r.url}`
+        );
+    }
+    if (name === "get_site_rankings") {
+        const rows = await getHotSites(env, limit);
+        if (rows.length === 0) return "暂时没有可推荐的站点";
+        return formatSkillResult(
+            "站内推荐站点排行",
+            rows,
+            (r, i) =>
+                `${i + 1}. ${r.name}（${r.group_name}）｜${r.url}｜${r.description || "暂无描述"}`
+        );
+    }
+    if (name === "list_groups") {
+        const groups = await listSiteGroups(env, limit > 20 ? limit : 30);
+        if (groups.length === 0) return "站点库中还没有任何分组";
+        return `站内全部分组（${groups.length} 个）：\n${groups
+            .map((g) => `- ${g.name}（${g.siteCount} 个站点）`)
+            .join("\n")}`;
+    }
+    return `未知技能「${name}」，可用技能：${AI_SKILL_TOOLS.map((t) => t.function.name).join("、")}`;
+}
+
+/** 知识注入兜底：把站内站点库摘要嵌入系统提示词（技能关闭或上游不支持时使用） */
+async function buildKnowledgeContext(env: Env, userPrompt: string): Promise<string> {
+    try {
+        const sites = await getHotSites(env, 6);
+        if (sites.length === 0) return "";
+        const digest = sites
+            .map(
+                (s, i) =>
+                    `${i + 1}. ${s.name}：${s.url}（分组：${s.group_name}；${s.description || "暂无描述"}）`
+            )
+            .join("\n");
+        const focus = userPrompt
+            ? `（用户最近关注：${userPrompt.slice(0, 40)}${userPrompt.length > 40 ? "…" : ""}）`
+            : "";
+        return `\n\n【站内站点库速览】为帮助你基于本导航站真实数据作答，列出现有热点站点：\n${digest}\n${focus}\n回答中引用站点时请使用上述真实 URL。`;
+    } catch (error) {
+        log({
+            level: "warn",
+            message: "构建站点库摘要失败，跳过知识注入",
+            path: "/api/ai/chat",
+            method: "POST",
+            details: error instanceof Error ? error.message : error,
+        });
+        return "";
+    }
 }
 
 // 输入验证函数
@@ -2005,6 +2574,18 @@ function validateAISettings(data: AiSettingsInput): string[] {
         data.systemPrompt.length > 4000
     ) {
         errors.push("systemPrompt 不能超过 4000 字符");
+    }
+    if (data.toolsEnabled !== undefined && typeof data.toolsEnabled !== "boolean") {
+        errors.push("toolsEnabled 必须是布尔值");
+    }
+    if (
+        data.tokenBudget !== undefined &&
+        (typeof data.tokenBudget !== "number" ||
+            !Number.isFinite(data.tokenBudget) ||
+            data.tokenBudget < 1000 ||
+            data.tokenBudget > 8000)
+    ) {
+        errors.push("tokenBudget 必须是 1000–8000 之间的数字");
     }
     if (
         data.apiKey !== undefined &&
