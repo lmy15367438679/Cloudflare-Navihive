@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, cloneElement, isValidElement } from '
 import { Box, Drawer } from '@mui/material';
 import type { ReactNode } from 'react';
 import ParticlesBackground from '../Effects/ParticlesBackground';
-import { OPEN_MOBILE_DRAWER_EVENT, FOCUS_SEARCH_EVENT } from '../../hooks/useSearchShortcut';
+import { OPEN_MOBILE_DRAWER_EVENT, requestSearchFocus } from '../../hooks/useSearchShortcut';
 
 interface AppLayoutProps {
   sidebar: ReactNode;
@@ -31,16 +31,15 @@ export default function AppLayout({
   const handleMobileMenuClose = useCallback(() => setMobileDrawerOpen(false), []);
 
   // 快捷键（⌘K / Ctrl+K / /）在移动端同样要能唤出搜索：Drawer 关闭时子树不挂载，
-  // 顶层首次派发的 FOCUS_SEARCH_EVENT 必然落空，故打开抽屉后等两帧（抽屉渲染完成）
-  // 再补派一次聚焦事件。桌面端由 hover 侧栏负责，此处只接管移动端。
+  // 顶层首次派发的 FOCUS_SEARCH_EVENT 必然落空，故打开抽屉后再走一次统一的聚焦派发
+  //（requestSearchFocus：立即 + 双 rAF 等抽屉渲染挂载 + timeout 兜底，接收端 SearchBox
+  // 还会校验焦点是否真正落上并按帧重试）。桌面端由 hover 侧栏负责，此处只接管移动端。
   useEffect(() => {
     const onOpenDrawer = () => {
       // MUI v7 默认 md 断点为 900px，与下方 Drawer 的 display: { xs: 'block', md: 'none' } 一致
       if (window.matchMedia('(min-width:900px)').matches) return;
       setMobileDrawerOpen(true);
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_EVENT)))
-      );
+      requestSearchFocus();
     };
     window.addEventListener(OPEN_MOBILE_DRAWER_EVENT, onOpenDrawer);
     return () => window.removeEventListener(OPEN_MOBILE_DRAWER_EVENT, onOpenDrawer);

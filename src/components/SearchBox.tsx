@@ -52,40 +52,8 @@ interface SearchBoxProps {
 
 type SearchMode = 'internal' | 'external';
 
-/**
- * 快捷键提示徽标（⌘K / Ctrl+K）
- *
- * 仅在输入框为空时显示，避免与「清空 / 搜索」按钮争抢宽度；移动端隐藏
- *（触屏无物理键盘，提示无意义且占用窄屏空间）。
- * aria-hidden：它只是视觉提示，键盘可用性已由 input 的 aria-keyshortcuts 声明。
- */
-function SearchShortcutHint({ isMac }: { isMac: boolean }) {
-  return (
-    <Box
-      component='kbd'
-      aria-hidden='true'
-      title='按此快捷键聚焦搜索框'
-      sx={{
-        flexShrink: 0,
-        mr: 0.5,
-        px: 0.75,
-        py: 0.25,
-        borderRadius: 'var(--radius-sm)',
-        border: '1px solid var(--color-border)',
-        bgcolor: 'var(--color-card-hover)',
-        color: 'var(--text-tertiary)',
-        fontFamily: 'var(--font-heading)',
-        fontSize: '11px',
-        lineHeight: 1.2,
-        whiteSpace: 'nowrap',
-        display: { xs: 'none', sm: 'inline-flex' },
-        transition: 'color 150ms ease, background-color 150ms ease',
-      }}
-    >
-      {isMac ? '⌘K' : 'Ctrl K'}
-    </Box>
-  );
-}
+/** 焦点重试上限（按帧）：等抽屉挂载 / 侧栏 display 切换完成，约 500ms */
+const MAX_FOCUS_TRIES = 30;
 
 const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultClick }) => {
   const [query, setQuery] = useState('');
@@ -98,9 +66,11 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
   const [isOpening, setIsOpening] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // 重试链去重：多次派发（见 requestSearchFocus）共用一条重试链，避免并发反复 focus
+  const focusRetryInFlightRef = useRef(false);
   const resultsListId = 'search-results-list';
 
-  // 平台探测（仅用于展示 ⌘K / Ctrl+K 键位徽标与 aria-keyshortcuts 文案）
+  // 平台探测（仅用于 input 的 aria-keyshortcuts 文案；界面不再展示键位提示）
   const isMac = useMemo(() => /Mac|iPhone|iPad|iPod/.test(navigator.userAgent), []);
 
   // 处理站内搜索（带 try-catch 保护）
@@ -304,20 +274,60 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
     }
   }, []);
 
-  // 响应顶层派发的 ⌘K/Ctrl+K / ` 快捷键聚焦（事件已延迟到侧栏展开 commit 之后）。
-  // 每个挂载的 SearchBox 都监听：同一时刻至多一个实例是「可见」的
-  //（桌面=hover 侧栏、移动端=抽屉；抽屉关闭时子树不挂载，被 display:none 隐藏的副本
-  // 调用 focus() 只是静默 no-op），因此不会产生重复聚焦。
-  // preventScroll：侧栏收起时输入框被 translateX 移出视口，默认 focus() 会把视口
-  // 滚到元素位置 → 页面出现无意义的横向/纵向抖动；preventScroll 后由过渡自行呈现。
-  // select()：快捷键的目的就是「立刻搜」，直接全选已有内容便于一次性覆盖输入。
+  // 响应顶层派发的 ⌘K/Ctrl+K / `/` 聚焦事件。
+  //
+  // 关键：焦点必须「真正落上」才算成功，落不上就按帧重试。
+  // 单次 focus() 失败的真实场景有三种，都曾在快捷键路径上出现过：
+  //   1. 抽屉刚开 —— 子树此刻还没挂载，inputRef.current 为 null；
+  //   2. 桌面副本在移动端被 display:none 隐藏 —— focus() 是静默 no-op，光标根本不会闪；
+  //   3. 侧栏仍 translateX 在视口外 —— 即使 focus 成功，元素不可见时浏览器不渲染光标。
+  // 因此这里重试到「焦点确认落在输入框」为止（上限 MAX_FOCUS_TRIES 帧），
+  // 而不是派发后无条件认为成功。
+  //
+  // 每个挂载的 SearchBox 都监听：同一时刻至多一个实例处于可见且可聚焦的状态
+  //（桌面=hover 侧栏、移动端=抽屉），隐藏副本会重试到耗尽后放弃，不会抢占焦点。
+  // preventScroll：收起时输入框被 translateX 移出视口，默认 focus() 会把视口滚到
+  // 元素位置 → 整页出现无意义的横向抖动；preventScroll 后由过渡自行呈现。
+  // select()：快捷键的目的就是「立刻搜」，全选已有内容便于一次性覆盖输入。
   useEffect(() => {
     const handleFocusSearch = () => {
-      const input = inputRef.current;
-      if (!input) return;
-      input.focus({ preventScroll: true });
-      input.select();
+      if (focusRetryInFlightRef.current) return;
+      focusRetryInFlightRef.current = true;
+      let tries = 0;
+
+      const attempt = () => {
+        const input = inputRef.current;
+        tries += 1;
+        const exhausted = tries > MAX_FOCUS_TRIES;
+
+        // 未挂载、已卸载、或祖先 display:none（offsetParent 为 null）时焦点落不上
+        if (!input || !input.isConnected || input.offsetParent === null) {
+          if (exhausted) {
+            focusRetryInFlightRef.current = false;
+            return;
+          }
+          requestAnimationFrame(attempt);
+          return;
+        }
+
+        input.focus({ preventScroll: true });
+        if (document.activeElement === input) {
+          input.select();
+          focusRetryInFlightRef.current = false;
+          return;
+        }
+
+        // focus 未生效（仍在过渡中 / 焦点被别处抢走）→ 下一帧重试
+        if (exhausted) {
+          focusRetryInFlightRef.current = false;
+          return;
+        }
+        requestAnimationFrame(attempt);
+      };
+
+      attempt();
     };
+
     window.addEventListener(FOCUS_SEARCH_EVENT, handleFocusSearch);
     return () => window.removeEventListener(FOCUS_SEARCH_EVENT, handleFocusSearch);
   }, []);
@@ -434,8 +444,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({ groups, sites, onInternalResultCl
               'aria-keyshortcuts': isMac ? 'Meta+K Slash' : 'Control+K Slash',
             }}
           />
-
-          {query || <SearchShortcutHint isMac={isMac} />}
 
           {/* 模式标签 */}
           {query && (

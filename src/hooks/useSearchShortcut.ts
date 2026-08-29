@@ -10,15 +10,14 @@ import { useEffect } from 'react';
  * 实现方式：在 App 顶层捕获阶段（capture=true）统一拦截 keydown，再通过 CustomEvent
  * 与 UI 解耦，两端各自监听自己关心的事件，避免组件间直接耦合：
  *
- *   1. EXPAND_SIDEBAR_EVENT    —— 桌面 hover 侧栏展开（侧栏收起时输入框不可见）
- *   2. OPEN_MOBILE_DRAWER_EVENT —— 移动端抽屉打开（Drawer 关闭时子树不挂载，
- *                                  首次派发必然落空，故由 AppLayout 自行延一拍重派聚焦）
- *   3. FOCUS_SEARCH_EVENT      —— 搜索输入框聚焦
+ *   1. EXPAND_SIDEBAR_EVENT     —— 桌面 hover 侧栏展开（侧栏收起时输入框不可见）
+ *   2. OPEN_MOBILE_DRAWER_EVENT —— 移动端抽屉打开（Drawer 关闭时子树不挂载）
+ *   3. FOCUS_SEARCH_EVENT       —— 搜索输入框聚焦（由 requestSearchFocus 派发）
  *
- * ⚠️ FOCUS_SEARCH_EVENT 必须延迟派发：展开侧栏是通过 setState 驱动的
- * transform/opacity 过渡，事件是同步派发的——若在同一帧内直接 focus()，
- * 输入框仍处于 translateX(-100%) 的隐藏状态，焦点会落在视口之外并可能触发
- * 整页横向滚动。这里用双 rAF（等 commit + 下一帧布局完成）优先、timeout 兜底。
+ * ⚠️ 聚焦不能「同步派发一次就算完」：展开侧栏是 setState 驱动的 transform/opacity
+ * 过渡，事件同步派发时输入框仍处于 translateX 的隐藏态，此时 focus() 是静默 no-op ——
+ * 用户看不到光标闪烁，只能再点一次鼠标。requestSearchFocus() 用「立即 + 双 rAF + timeout」
+ * 三次派发覆盖各种挂载时点，接收端（SearchBox）再校验焦点是否真正落上并按帧重试。
  */
 
 export const EXPAND_SIDEBAR_EVENT = 'navihive:expand-sidebar';
@@ -28,23 +27,32 @@ export const FOCUS_SEARCH_EVENT = 'navihive:focus-search';
 /** 兜底延迟：覆盖合成器繁忙导致 rAF 被推迟的场景（远小于侧栏 200ms 过渡，不影响观感） */
 const FOCUS_FALLBACK_MS = 80;
 
+/**
+ * 派发「聚焦搜索框」请求，三次兜底（接收端幂等，并自行校验焦点是否真正落上、按帧重试）：
+ *   1. 立即     —— 侧栏已展开（如桌面端已处于 hover 展开态）时当帧即聚焦，无多余延迟
+ *   2. 双 rAF   —— 侧栏由本次事件展开时，等 setState commit + 下一帧布局完成再聚焦
+ *   3. timeout  —— 覆盖合成器繁忙导致 rAF 被推迟的场景
+ *
+ * 为什么不能「派发一次就算成功」：侧栏默认 translateX 在视口外、移动端抽屉关闭时
+ * 子树根本不挂载，此时单次 focus() 是静默 no-op，用户看不到光标，只能再点一次鼠标。
+ * 三次派发 + 接收端重试链 = 任何挂载时点都能被覆盖。
+ */
+export function requestSearchFocus(): void {
+  window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_EVENT));
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_EVENT)))
+  );
+  window.setTimeout(
+    () => window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_EVENT)),
+    FOCUS_FALLBACK_MS
+  );
+}
+
 /** 输入目标判定：`/` 在这些元素内不应被劫持 */
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
-
-/** 等「展开侧栏」完成一次 commit 后再派发聚焦事件（仅派发一次） */
-function dispatchFocusSearchLater(): void {
-  let fired = false;
-  const fire = () => {
-    if (fired) return;
-    fired = true;
-    window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_EVENT));
-  };
-  requestAnimationFrame(() => requestAnimationFrame(fire));
-  window.setTimeout(fire, FOCUS_FALLBACK_MS);
 }
 
 /**
@@ -68,7 +76,7 @@ export function useSearchShortcut(): void {
       e.preventDefault();
       window.dispatchEvent(new CustomEvent(EXPAND_SIDEBAR_EVENT));
       window.dispatchEvent(new CustomEvent(OPEN_MOBILE_DRAWER_EVENT));
-      dispatchFocusSearchLater();
+      requestSearchFocus();
     };
 
     document.addEventListener('keydown', handleGlobalShortcut, true);
