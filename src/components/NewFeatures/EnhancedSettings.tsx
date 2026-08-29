@@ -30,7 +30,6 @@ import AnimationIcon from '@mui/icons-material/Animation';
 import SpeedIcon from '@mui/icons-material/Speed';
 import BugReportIcon from '@mui/icons-material/BugReport';
 
-
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -75,7 +74,6 @@ const PRESET_WALLPAPERS = [
   { name: '城市', url: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1920&q=80' },
   { name: '渐变', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1920&q=80' },
 ];
-
 
 export default function EnhancedSettings({
   open,
@@ -143,8 +141,20 @@ export default function EnhancedSettings({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth
-      slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' } } }}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth='md'
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: 'var(--color-elevated)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+          },
+        },
+      }}
     >
       <DialogTitle>
         <Box display='flex' justifyContent='space-between' alignItems='center'>
@@ -227,7 +237,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.searchBoxEnabled'] !== 'false'}
-                onChange={(e) => handleConfigChange('site.searchBoxEnabled', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.searchBoxEnabled', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -244,7 +256,12 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.searchBoxGuestEnabled'] !== 'false'}
-                onChange={(e) => handleConfigChange('site.searchBoxGuestEnabled', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange(
+                    'site.searchBoxGuestEnabled',
+                    e.target.checked ? 'true' : 'false'
+                  )
+                }
               />
             }
             label={
@@ -272,7 +289,11 @@ export default function EnhancedSettings({
               startIcon={<AutoAwesomeIcon />}
               onClick={handleAutoGroupClick}
               disabled={autoGrouping}
-              sx={{ alignSelf: 'flex-start', borderColor: 'var(--color-border)', color: 'var(--text-primary)' }}
+              sx={{
+                alignSelf: 'flex-start',
+                borderColor: 'var(--color-border)',
+                color: 'var(--text-primary)',
+              }}
             >
               {autoGrouping ? '整理中...' : '按域名自动分组'}
             </Button>
@@ -316,7 +337,8 @@ export default function EnhancedSettings({
                   borderRadius: 2,
                   overflow: 'hidden',
                   border: 2,
-                  borderColor: tempConfigs['site.backgroundImage'] === wp.url ? 'primary.main' : 'transparent',
+                  borderColor:
+                    tempConfigs['site.backgroundImage'] === wp.url ? 'primary.main' : 'transparent',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -372,7 +394,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.backgroundBlur'] === 'true'}
-                onChange={(e) => handleConfigChange('site.backgroundBlur', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.backgroundBlur', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label='背景模糊效果'
@@ -389,7 +413,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.particlesEnabled'] === 'true'}
-                onChange={(e) => handleConfigChange('site.particlesEnabled', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.particlesEnabled', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -407,7 +433,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.glassEffect'] === 'true'}
-                onChange={(e) => handleConfigChange('site.glassEffect', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.glassEffect', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -426,7 +454,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.cardAnimation'] === 'true'}
-                onChange={(e) => handleConfigChange('site.cardAnimation', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.cardAnimation', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -444,7 +474,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.smoothScroll'] === 'true'}
-                onChange={(e) => handleConfigChange('site.smoothScroll', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.smoothScroll', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -469,7 +501,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.lazyLoadImages'] === 'true'}
-                onChange={(e) => handleConfigChange('site.lazyLoadImages', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.lazyLoadImages', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -487,7 +521,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.imageCache'] === 'true'}
-                onChange={(e) => handleConfigChange('site.imageCache', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.imageCache', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -505,7 +541,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.reduceMotion'] === 'true'}
-                onChange={(e) => handleConfigChange('site.reduceMotion', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.reduceMotion', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -523,7 +561,9 @@ export default function EnhancedSettings({
             control={
               <Switch
                 checked={tempConfigs['site.compactMode'] === 'true'}
-                onChange={(e) => handleConfigChange('site.compactMode', e.target.checked ? 'true' : 'false')}
+                onChange={(e) =>
+                  handleConfigChange('site.compactMode', e.target.checked ? 'true' : 'false')
+                }
               />
             }
             label={
@@ -536,7 +576,6 @@ export default function EnhancedSettings({
             }
             sx={{ mb: 2, display: 'flex' }}
           />
-
         </TabPanel>
 
         {/* 开发者选项（仅本机 localStorage，与全局 D1 配置无关） */}
@@ -556,7 +595,8 @@ export default function EnhancedSettings({
               <Box>
                 <Typography variant='body1'>帧率监测面板（FPS）</Typography>
                 <Typography variant='caption' color='text.secondary'>
-                  右下角实时显示 FPS / 最低帧 / 均值 / 长任务 / 内存，用于检查滚动与动画是否掉帧。开启后快捷键 Shift+P 可随时隐藏或再显示面板。
+                  右下角实时显示 FPS / 最低帧 / 均值 / 长任务 /
+                  内存，用于检查滚动与动画是否掉帧。开启后快捷键 Shift+P 可随时隐藏或再显示面板。
                 </Typography>
               </Box>
             }
@@ -574,7 +614,8 @@ export default function EnhancedSettings({
               <Box>
                 <Typography variant='body1'>调试日志面板</Typography>
                 <Typography variant='caption' color='text.secondary'>
-                  捕获页面的 console 输出与 JS 报错，右下角浮层实时查看，便于不打开 DevTools 也能快速排查问题。
+                  捕获页面的 console 输出与 JS 报错，右下角浮层实时查看，便于不打开 DevTools
+                  也能快速排查问题。
                 </Typography>
               </Box>
             }

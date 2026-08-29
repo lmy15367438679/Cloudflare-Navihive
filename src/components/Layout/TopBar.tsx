@@ -1,4 +1,13 @@
-import { Box, Typography, IconButton, Menu, MenuItem, ListItemText, Divider, Tooltip } from '@mui/material';
+import {
+  Box,
+  Typography,
+  IconButton,
+  Menu,
+  MenuItem,
+  ListItemText,
+  Divider,
+  Tooltip,
+} from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MenuIcon from '@mui/icons-material/Menu';
 import HomeIcon from '@mui/icons-material/Home';
@@ -44,7 +53,7 @@ export default function TopBar({
 
   return (
     <Box
-      component="header"
+      component='header'
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -63,15 +72,15 @@ export default function TopBar({
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <IconButton
-          size="small"
+          size='small'
           onClick={onMobileMenuOpen}
           sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'var(--text-secondary)' }}
         >
-          <MenuIcon fontSize="small" />
+          <MenuIcon fontSize='small' />
         </IconButton>
         <Typography
-          variant="h6"
-          component="span"
+          variant='h6'
+          component='span'
           sx={{
             fontFamily: 'var(--font-heading)',
             fontWeight: 600,
@@ -82,11 +91,11 @@ export default function TopBar({
           {title}
         </Typography>
         {isGroupView && (
-          <Tooltip title="回到全部">
+          <Tooltip title='回到全部'>
             <IconButton
               size='small'
               onClick={onShowAll}
-              aria-label="回到全部"
+              aria-label='回到全部'
               sx={{
                 color: 'var(--text-secondary)',
                 '&:hover': {
@@ -107,40 +116,80 @@ export default function TopBar({
         {isAuthenticated && (
           <>
             <IconButton
-              size="small"
+              size='small'
               onClick={(e) => setMenuAnchor(e.currentTarget)}
               sx={{ color: 'var(--text-secondary)' }}
             >
-              <MoreVertIcon fontSize="small" />
+              <MoreVertIcon fontSize='small' />
             </IconButton>
 
             <Menu
               anchorEl={menuAnchor}
               open={Boolean(menuAnchor)}
               onClose={() => setMenuAnchor(null)}
-              slotProps={{ paper: { sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)' } } }}
+              slotProps={{
+                paper: {
+                  sx: { bgcolor: 'var(--color-elevated)', border: '1px solid var(--color-border)' },
+                },
+              }}
             >
-              <MenuItem onClick={() => { setMenuAnchor(null); onOpenLinkChecker(); }}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onOpenLinkChecker();
+                }}
+              >
                 <ListItemText>链接检测</ListItemText>
               </MenuItem>
-              <MenuItem onClick={() => { setMenuAnchor(null); onOpenBookmarklet(); }}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onOpenBookmarklet();
+                }}
+              >
                 <ListItemText>一键收藏</ListItemText>
               </MenuItem>
-              <MenuItem onClick={() => { setMenuAnchor(null); onOpenBatchMove(); }}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onOpenBatchMove();
+                }}
+              >
                 <ListItemText>批量移动</ListItemText>
               </MenuItem>
-              <MenuItem onClick={() => { setMenuAnchor(null); onOpenEnhancedSettings(); }}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onOpenEnhancedSettings();
+                }}
+              >
                 <ListItemText>个性化设置</ListItemText>
               </MenuItem>
               <Divider sx={{ borderColor: 'var(--color-border)' }} />
-              <MenuItem onClick={() => { setMenuAnchor(null); onOpenExport(); }}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onOpenExport();
+                }}
+              >
                 <ListItemText>导出数据</ListItemText>
               </MenuItem>
-              <MenuItem onClick={() => { setMenuAnchor(null); onOpenImport(); }}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onOpenImport();
+                }}
+              >
                 <ListItemText>导入数据</ListItemText>
               </MenuItem>
               <Divider sx={{ borderColor: 'var(--color-border)' }} />
-              <MenuItem onClick={() => { setMenuAnchor(null); onLogout(); }} sx={{ color: 'var(--color-destructive)' }}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onLogout();
+                }}
+                sx={{ color: 'var(--color-destructive)' }}
+              >
                 <ListItemText>退出登录</ListItemText>
               </MenuItem>
             </Menu>

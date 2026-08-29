@@ -143,7 +143,9 @@ const DebugLog = memo(function DebugLog() {
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5 }}>
         <BugReportIcon sx={{ fontSize: 14, color: 'var(--text-secondary)' }} />
-        <Typography sx={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1, fontWeight: 600 }}>
+        <Typography
+          sx={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1, fontWeight: 600 }}
+        >
           调试日志
         </Typography>
         <IconButton size='small' onClick={() => setLogs([])} title='清空日志'>
@@ -173,12 +175,26 @@ const DebugLog = memo(function DebugLog() {
         {visibleLogs.map((l, i) => (
           <Box
             key={i}
-            sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start', mb: 0.25, wordBreak: 'break-all' }}
+            sx={{
+              display: 'flex',
+              gap: 0.75,
+              alignItems: 'flex-start',
+              mb: 0.25,
+              wordBreak: 'break-all',
+            }}
           >
             <Box sx={{ flexShrink: 0, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
               {new Date(l.time).toLocaleTimeString('zh-CN', { hour12: false })}
             </Box>
-            <Box sx={{ flexShrink: 0, width: 42, fontWeight: 700, color: LEVEL_COLOR[l.level], textTransform: 'uppercase' }}>
+            <Box
+              sx={{
+                flexShrink: 0,
+                width: 42,
+                fontWeight: 700,
+                color: LEVEL_COLOR[l.level],
+                textTransform: 'uppercase',
+              }}
+            >
               {l.level}
             </Box>
             <Box sx={{ color: 'var(--text-primary)' }}>{l.text}</Box>

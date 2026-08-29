@@ -30,7 +30,9 @@ export default function SortableGroupItem({ id, group }: SortableGroupItemProps)
         borderRadius: 'var(--radius-lg)',
         // 只过渡会被动画的属性（transform/box-shadow/border-color），避免 transition: all
         // 在拖拽重排时触发整卡逐帧重绘（数百卡片场景的掉帧来源）
-        transition: isDragging ? 'none !important' : 'transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease',
+        transition: isDragging
+          ? 'none !important'
+          : 'transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease',
         border: '1px solid var(--color-border)',
         boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
         bgcolor: 'var(--color-card)',

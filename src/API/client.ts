@@ -127,7 +127,6 @@ export class NavigationClient {
       console.error('认证状态检查失败:', error);
       return false;
     }
-
   }
 
   // 检查认证是否已启用
@@ -317,4 +316,3 @@ export class NavigationClient {
     });
   }
 }
-

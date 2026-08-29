@@ -45,7 +45,12 @@ interface LinkCheckerProps {
   apiBaseUrl?: string;
 }
 
-export default function LinkChecker({ open, onClose, sites, apiBaseUrl = '/api' }: LinkCheckerProps) {
+export default function LinkChecker({
+  open,
+  onClose,
+  sites,
+  apiBaseUrl = '/api',
+}: LinkCheckerProps) {
   const [results, setResults] = useState<LinkCheckResult[]>([]);
   const [checking, setChecking] = useState(false);
   const [progress, setProgress] = useState(0);

@@ -47,8 +47,8 @@ export default function EmptyState({ title, description, actionLabel, onAction }
       )}
       {actionLabel && onAction && (
         <Button
-          variant="outlined"
-          size="small"
+          variant='outlined'
+          size='small'
           startIcon={<AddIcon />}
           onClick={onAction}
           sx={{

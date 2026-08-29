@@ -4,7 +4,18 @@ import { GroupWithSites } from '../types';
 import SiteSettingsModal from './SiteSettingsModal';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Box, Typography, Skeleton, Dialog, DialogTitle, DialogContent, List, ListItemButton, ListItemText, IconButton } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Skeleton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  List,
+  ListItemButton,
+  ListItemText,
+  IconButton,
+} from '@mui/material';
 import { Star as StarIcon, StarBorder as StarBorderIcon } from '@mui/icons-material';
 import { useContextMenu, ContextMenuPopper, siteContextActions } from './ContextMenu';
 import { getIconProxyUrl } from '../utils/url';
@@ -134,10 +145,12 @@ const SiteCard = memo(function SiteCard({
         onDelete(site.id);
       }
     },
-    groups && groups.length > 1 ? () => {
-      close();
-      setShowMoveDialog(true);
-    } : undefined
+    groups && groups.length > 1
+      ? () => {
+          close();
+          setShowMoveDialog(true);
+        }
+      : undefined
   );
 
   const cardContent = (
@@ -185,10 +198,10 @@ const SiteCard = memo(function SiteCard({
     >
       {/* Icon */}
       {!iconError && site.icon ? (
-        <Box position="relative" width={28} height={28} flexShrink={0} className='site-card-icon'>
+        <Box position='relative' width={28} height={28} flexShrink={0} className='site-card-icon'>
           {!imageLoaded && (
             <Skeleton
-              variant="rounded"
+              variant='rounded'
               width={28}
               height={28}
               animation={false}
@@ -196,11 +209,11 @@ const SiteCard = memo(function SiteCard({
             />
           )}
           <Box
-            component="img"
+            component='img'
             src={iconSrc}
-            alt=""
+            alt=''
             loading={lazyLoadImages ? 'lazy' : 'eager'}
-            decoding="async"
+            decoding='async'
             fetchPriority={lazyLoadImages ? 'low' : 'auto'}
             sx={{
               width: 28,

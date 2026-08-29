@@ -46,7 +46,9 @@ export default function BatchMoveDialog({
   onBatchMove,
 }: BatchMoveDialogProps) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [targetGroupId, setTargetGroupId] = useState<number>(groups.length > 0 && groups[0]?.id ? groups[0].id : 0);
+  const [targetGroupId, setTargetGroupId] = useState<number>(
+    groups.length > 0 && groups[0]?.id ? groups[0].id : 0
+  );
   const [moving, setMoving] = useState(false);
 
   // 构建站点到分组的映射，用于显示当前分组
@@ -132,23 +134,34 @@ export default function BatchMoveDialog({
           <Typography variant='body2' color='text.secondary'>
             已选择 {selectedIds.length} / {sites.length} 个站点
           </Typography>
-          <Button size='small' onClick={handleSelectAll} sx={{ minWidth: 'auto', fontSize: '0.75rem' }}>
+          <Button
+            size='small'
+            onClick={handleSelectAll}
+            sx={{ minWidth: 'auto', fontSize: '0.75rem' }}
+          >
             {selectedIds.length === sites.length ? '取消全选' : '全选'}
           </Button>
         </Box>
 
         {/* 站点列表 */}
-        <List sx={{ maxHeight: 350, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <List
+          sx={{
+            maxHeight: 350,
+            overflow: 'auto',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+          }}
+        >
           {sites.map((site) => (
-              <ListItemButton
-                key={site.id}
-                dense
-                component="div"
-                onClick={() => site.id && handleToggleSelect(site.id)}
-                selected={site.id ? selectedIds.includes(site.id) : false}
-                sx={{ cursor: 'pointer' }}
-              >
-
+            <ListItemButton
+              key={site.id}
+              dense
+              component='div'
+              onClick={() => site.id && handleToggleSelect(site.id)}
+              selected={site.id ? selectedIds.includes(site.id) : false}
+              sx={{ cursor: 'pointer' }}
+            >
               <ListItemIcon sx={{ minWidth: 36 }}>
                 <Checkbox
                   edge='start'
@@ -174,7 +187,13 @@ export default function BatchMoveDialog({
                     <Typography
                       component='span'
                       variant='caption'
-                      sx={{ ml: 1, px: 0.5, borderRadius: '4px', bgcolor: 'action.selected', color: 'text.secondary' }}
+                      sx={{
+                        ml: 1,
+                        px: 0.5,
+                        borderRadius: '4px',
+                        bgcolor: 'action.selected',
+                        color: 'text.secondary',
+                      }}
                     >
                       {siteGroupMap.get(site.id!) || '未知分组'}
                     </Typography>
@@ -188,7 +207,8 @@ export default function BatchMoveDialog({
 
         {selectedIds.length > 0 && targetGroupId > 0 && (
           <Alert severity='info' sx={{ mt: 2 }}>
-            将 {selectedIds.length} 个站点移动到「{groups.find((g) => g.id === targetGroupId)?.name || '目标分组'}」
+            将 {selectedIds.length} 个站点移动到「
+            {groups.find((g) => g.id === targetGroupId)?.name || '目标分组'}」
           </Alert>
         )}
       </DialogContent>

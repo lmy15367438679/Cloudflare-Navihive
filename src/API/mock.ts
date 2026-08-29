@@ -417,7 +417,7 @@ export class MockNavigationClient {
     // 模拟检测结果
     const results = urls.map((url) => ({
       url,
-      status: Math.random() > 0.2 ? 'ok' as const : 'error' as const,
+      status: Math.random() > 0.2 ? ('ok' as const) : ('error' as const),
       statusCode: Math.random() > 0.2 ? 200 : 404,
       duration: Math.floor(Math.random() * 500) + 100,
     }));
@@ -483,7 +483,6 @@ export class MockNavigationClient {
 
   // 数据导入
   async importData(data: ExportData): Promise<ImportResult> {
-
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     try {

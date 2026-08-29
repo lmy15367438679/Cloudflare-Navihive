@@ -20,12 +20,7 @@ interface EditGroupDialogProps {
   onSave: (group: Group) => void;
 }
 
-const EditGroupDialog: React.FC<EditGroupDialogProps> = ({
-  open,
-  group,
-  onClose,
-  onSave,
-}) => {
+const EditGroupDialog: React.FC<EditGroupDialogProps> = ({ open, group, onClose, onSave }) => {
   const [name, setName] = useState('');
   const [isPublic, setIsPublic] = useState(true);
 
@@ -90,18 +85,12 @@ const EditGroupDialog: React.FC<EditGroupDialogProps> = ({
             }
           />
         </Box>
-
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} color='inherit'>
           取消
         </Button>
-        <Button
-          onClick={handleSave}
-          color='primary'
-          variant='contained'
-          disabled={!name.trim()}
-        >
+        <Button onClick={handleSave} color='primary' variant='contained' disabled={!name.trim()}>
           保存
         </Button>
       </DialogActions>

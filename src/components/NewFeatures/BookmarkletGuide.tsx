@@ -33,7 +33,11 @@ interface BookmarkletGuideProps {
   siteUrl?: string;
 }
 
-export default function BookmarkletGuide({ open, onClose, siteUrl = window.location.origin }: BookmarkletGuideProps) {
+export default function BookmarkletGuide({
+  open,
+  onClose,
+  siteUrl = window.location.origin,
+}: BookmarkletGuideProps) {
   // 允许用户自定义导航站URL
   const [customUrl, setCustomUrl] = useState(siteUrl);
 
@@ -165,7 +169,8 @@ export default function BookmarkletGuide({ open, onClose, siteUrl = window.locat
                 </Box>
               </Paper>
               <Typography variant='caption' color='text.secondary' sx={{ mt: 1, display: 'block' }}>
-                如果书签栏未显示，请按 <b>Ctrl+Shift+B</b> (Windows) 或 <b>Cmd+Shift+B</b> (Mac) 显示书签栏
+                如果书签栏未显示，请按 <b>Ctrl+Shift+B</b> (Windows) 或 <b>Cmd+Shift+B</b> (Mac)
+                显示书签栏
               </Typography>
             </StepContent>
           </Step>

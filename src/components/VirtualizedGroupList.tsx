@@ -94,7 +94,7 @@ function VirtualizedGroupList({
   return (
     <div
       ref={rootRef}
-      role="list"
+      role='list'
       style={{
         position: 'relative',
         width: '100%',
@@ -107,7 +107,7 @@ function VirtualizedGroupList({
         return (
           <div
             key={vi.key}
-            role="listitem"
+            role='listitem'
             id={`group-${group.id}`}
             data-index={vi.index}
             ref={virtualizer.measureElement}

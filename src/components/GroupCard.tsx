@@ -198,8 +198,7 @@ const GroupCard = memo(function GroupCard({
     if (viewMode !== 'edit' && favoriteIds && favoriteIds.size > 0) {
       orderedSites = [...sitesToRender].sort(
         (a, b) =>
-          (favoriteIds.has(b.id as number) ? 1 : 0) -
-          (favoriteIds.has(a.id as number) ? 1 : 0)
+          (favoriteIds.has(b.id as number) ? 1 : 0) - (favoriteIds.has(a.id as number) ? 1 : 0)
       );
     }
 
@@ -403,13 +402,22 @@ const GroupCard = memo(function GroupCard({
             variant='h5'
             component='h2'
             fontWeight={600}
-            sx={{ fontFamily: 'var(--font-heading)', mb: { xs: 1, sm: 0 }, color: 'var(--text-primary)' }}
+            sx={{
+              fontFamily: 'var(--font-heading)',
+              mb: { xs: 1, sm: 0 },
+              color: 'var(--text-primary)',
+            }}
           >
             {group.name}
             <Typography
               component='span'
               variant='body2'
-              sx={{ ml: 1, fontFamily: 'var(--font-body)', color: 'var(--text-tertiary)', fontSize: '12px' }}
+              sx={{
+                ml: 1,
+                fontFamily: 'var(--font-body)',
+                color: 'var(--text-tertiary)',
+                fontSize: '12px',
+              }}
             >
               ({group.sites.length})
             </Typography>
@@ -512,13 +520,14 @@ const GroupCard = memo(function GroupCard({
         <ContextMenuPopper
           position={ctxPosition}
           onClose={closeCtx}
-          actions={groupContextActions(
-            () => {
-              if (group.id && window.confirm(`确定删除分组「${group.name}」？\n此分组下的所有站点也将被删除。`)) {
-                handleDeleteGroup(group.id);
-              }
+          actions={groupContextActions(() => {
+            if (
+              group.id &&
+              window.confirm(`确定删除分组「${group.name}」？\n此分组下的所有站点也将被删除。`)
+            ) {
+              handleDeleteGroup(group.id);
             }
-          )}
+          })}
         />
       )}
 

@@ -101,14 +101,18 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
         }}
       >
         {/* aria-live 播报 — 对屏幕阅读器隐藏 */}
-        <Box aria-live='polite' aria-atomic='true' sx={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          overflow: 'hidden',
-          clip: 'rect(0, 0, 0, 0)',
-          whiteSpace: 'nowrap',
-        }}>
+        <Box
+          aria-live='polite'
+          aria-atomic='true'
+          sx={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+          }}
+        >
           未找到 {query} 的相关结果
         </Box>
 
@@ -122,9 +126,7 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
             textAlign: 'center',
           }}
         >
-          <SearchOffIcon
-            sx={{ fontSize: 48, color: 'action.disabled', mb: 1.5 }}
-          />
+          <SearchOffIcon sx={{ fontSize: 48, color: 'action.disabled', mb: 1.5 }} />
           <Typography variant='body1' color='text.secondary' sx={{ fontWeight: 500 }}>
             未找到「{query}」相关结果
           </Typography>
@@ -160,14 +162,18 @@ const SearchResultPanel: React.FC<SearchResultPanelProps> = ({
       }}
     >
       {/* aria-live 播报结果数量 — 对屏幕阅读器隐藏 */}
-      <Box aria-live='polite' aria-atomic='true' sx={{
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        overflow: 'hidden',
-        clip: 'rect(0, 0, 0, 0)',
-        whiteSpace: 'nowrap',
-      }}>
+      <Box
+        aria-live='polite'
+        aria-atomic='true'
+        sx={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          whiteSpace: 'nowrap',
+        }}
+      >
         找到 {results.length} 个结果
       </Box>
 

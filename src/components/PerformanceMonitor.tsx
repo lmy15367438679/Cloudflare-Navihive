@@ -39,7 +39,9 @@ function Metric({ label, value, color }: { label: string; value: number; color: 
       >
         {value}
       </Box>
-      <Box sx={{ fontSize: '9px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{label}</Box>
+      <Box sx={{ fontSize: '9px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+        {label}
+      </Box>
     </Box>
   );
 }
@@ -144,7 +146,8 @@ const PerformanceMonitor = memo(function PerformanceMonitor() {
       if (now - lastUpdateRef.current > 500) {
         lastUpdateRef.current = now;
         const currentAvg = fpsSumRef.current / Math.max(fpsCountRef.current, 1);
-        avgFpsRef.current = avgFpsRef.current === 0 ? currentAvg : avgFpsRef.current * 0.5 + currentAvg * 0.5;
+        avgFpsRef.current =
+          avgFpsRef.current === 0 ? currentAvg : avgFpsRef.current * 0.5 + currentAvg * 0.5;
 
         setFps(frameFps);
         setAvgFps(avgFpsRef.current);
@@ -190,7 +193,7 @@ const PerformanceMonitor = memo(function PerformanceMonitor() {
     return (
       <Box
         onClick={() => toggleVisible(true)}
-        title="打开性能监控 (Shift+P)"
+        title='打开性能监控 (Shift+P)'
         sx={{
           position: 'fixed',
           right: 12,
@@ -254,18 +257,27 @@ const PerformanceMonitor = memo(function PerformanceMonitor() {
       </Box>
 
       <Box sx={{ display: 'flex', gap: 1, mb: 0.75 }}>
-        <Metric label="FPS" value={Math.round(fps)} color={color} />
-        <Metric label="最低" value={Math.round(minFps)} color={color} />
-        <Metric label="均值" value={Math.round(avgFps)} color={color} />
+        <Metric label='FPS' value={Math.round(fps)} color={color} />
+        <Metric label='最低' value={Math.round(minFps)} color={color} />
+        <Metric label='均值' value={Math.round(avgFps)} color={color} />
       </Box>
 
       <Box sx={{ bgcolor: 'var(--color-card)', borderRadius: '4px', p: 0.5, mb: 0.5 }}>
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" style={{ width: '100%', height: 36, display: 'block' }}>
+        <svg
+          viewBox='0 0 100 40'
+          preserveAspectRatio='none'
+          style={{ width: '100%', height: 36, display: 'block' }}
+        >
           <line
-            x1="0" y1="20" x2="100" y2="20"
-            stroke="var(--color-border)" strokeDasharray="2 2" strokeWidth="0.5"
+            x1='0'
+            y1='20'
+            x2='100'
+            y2='20'
+            stroke='var(--color-border)'
+            strokeDasharray='2 2'
+            strokeWidth='0.5'
           />
-          <polyline points={points} fill="none" stroke={color} strokeWidth="1" />
+          <polyline points={points} fill='none' stroke={color} strokeWidth='1' />
         </svg>
       </Box>
 
@@ -283,25 +295,31 @@ const PerformanceMonitor = memo(function PerformanceMonitor() {
       </Box>
 
       {longTasks.length > 0 && (
-        <Box sx={{ maxHeight: 60, overflowY: 'auto', fontSize: '10px', color: 'var(--text-secondary)' }}>
+        <Box
+          sx={{
+            maxHeight: 60,
+            overflowY: 'auto',
+            fontSize: '10px',
+            color: 'var(--text-secondary)',
+          }}
+        >
           {longTasks
             .slice(-5)
             .reverse()
             .map((t, i) => (
               <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>{new Date(t.t).toLocaleTimeString()}</span>
-                <span style={{ color: t.duration > 100 ? '#EF4444' : '#F59E0B' }}>{t.duration}ms</span>
+                <span style={{ color: t.duration > 100 ? '#EF4444' : '#F59E0B' }}>
+                  {t.duration}ms
+                </span>
               </Box>
             ))}
         </Box>
       )}
 
-      <Box sx={{ mt: 0.5, fontSize: '10px', color: 'var(--text-tertiary)' }}>
-        Shift+P 切换
-      </Box>
+      <Box sx={{ mt: 0.5, fontSize: '10px', color: 'var(--text-tertiary)' }}>Shift+P 切换</Box>
     </Box>
   );
 });
 
 export default PerformanceMonitor;
-

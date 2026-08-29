@@ -15,10 +15,15 @@ export default function LoadingSkeleton() {
         minHeight: 56,
       }}
     >
-      <Skeleton variant="rounded" width={28} height={28} sx={{ flexShrink: 0, borderRadius: '4px' }} />
+      <Skeleton
+        variant='rounded'
+        width={28}
+        height={28}
+        sx={{ flexShrink: 0, borderRadius: '4px' }}
+      />
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Skeleton variant="text" width="60%" height={16} sx={{ mb: 0.5 }} />
-        <Skeleton variant="text" width="80%" height={12} />
+        <Skeleton variant='text' width='60%' height={16} sx={{ mb: 0.5 }} />
+        <Skeleton variant='text' width='80%' height={12} />
       </Box>
     </Box>
   ));
@@ -27,9 +32,9 @@ export default function LoadingSkeleton() {
     <Box key={i} sx={{ mb: 5 }}>
       {/* Group header skeleton */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-        <Skeleton variant="rounded" width={20} height={20} />
-        <Skeleton variant="text" width={120} height={24} />
-        <Skeleton variant="rounded" width={56} height={28} sx={{ ml: 'auto' }} />
+        <Skeleton variant='rounded' width={20} height={20} />
+        <Skeleton variant='text' width={120} height={24} />
+        <Skeleton variant='rounded' width={56} height={28} sx={{ ml: 'auto' }} />
       </Box>
       {/* Site cards grid */}
       <Box
@@ -50,12 +55,14 @@ export default function LoadingSkeleton() {
   ));
 
   return (
-    <Box sx={{
-      minHeight: '100px',
-      px: { xs: 2, sm: 3, md: 4 },
-      animation: 'fadeIn 250ms ease-out',
-      '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } },
-    }}>
+    <Box
+      sx={{
+        minHeight: '100px',
+        px: { xs: 2, sm: 3, md: 4 },
+        animation: 'fadeIn 250ms ease-out',
+        '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } },
+      }}
+    >
       {groupSections}
     </Box>
   );

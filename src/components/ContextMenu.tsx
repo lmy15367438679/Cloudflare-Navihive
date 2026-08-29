@@ -1,5 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Box, Paper, MenuList, MenuItem, ListItemIcon, ListItemText, Divider, ClickAwayListener, Portal } from '@mui/material';
+import {
+  Box,
+  Paper,
+  MenuList,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
+  ClickAwayListener,
+  Portal,
+} from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
@@ -58,7 +68,12 @@ interface ContextMenuPopperProps {
   popperRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-export function ContextMenuPopper({ position, onClose, actions, popperRef }: ContextMenuPopperProps) {
+export function ContextMenuPopper({
+  position,
+  onClose,
+  actions,
+  popperRef,
+}: ContextMenuPopperProps) {
   if (!position) return null;
 
   const menuContent = (
@@ -97,7 +112,9 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
                     fontSize: '13px',
                     color: action.destructive ? 'var(--color-destructive)' : 'var(--text-primary)',
                     '&:hover': {
-                      bgcolor: action.destructive ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)',
+                      bgcolor: action.destructive
+                        ? 'rgba(239,68,68,0.1)'
+                        : 'rgba(255,255,255,0.05)',
                     },
                   }}
                 >
@@ -106,11 +123,15 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
                       {action.icon}
                     </ListItemIcon>
                   )}
-                  <ListItemText primaryTypographyProps={{ fontSize: '13px', fontFamily: 'var(--font-body)' }}>
+                  <ListItemText
+                    primaryTypographyProps={{ fontSize: '13px', fontFamily: 'var(--font-body)' }}
+                  >
                     {action.label}
                   </ListItemText>
                 </MenuItem>
-                {action.dividerAfter && <Divider sx={{ borderColor: 'var(--color-border)', my: 0.5 }} />}
+                {action.dividerAfter && (
+                  <Divider sx={{ borderColor: 'var(--color-border)', my: 0.5 }} />
+                )}
               </Box>
             ))}
           </MenuList>
@@ -125,27 +146,30 @@ export function ContextMenuPopper({ position, onClose, actions, popperRef }: Con
 export const siteContextActions = (
   onEdit: () => void,
   onDelete: () => void,
-  onMoveGroupRequest?: () => void,
+  onMoveGroupRequest?: () => void
 ): ContextMenuAction[] => {
   const actions: ContextMenuAction[] = [
-    { label: '编辑', icon: <EditIcon fontSize="small" />, onClick: onEdit },
+    { label: '编辑', icon: <EditIcon fontSize='small' />, onClick: onEdit },
   ];
 
   if (onMoveGroupRequest) {
     actions.push({
       label: '移动到分组',
-      icon: <DriveFileMoveIcon fontSize="small" />,
+      icon: <DriveFileMoveIcon fontSize='small' />,
       onClick: onMoveGroupRequest,
       dividerAfter: true,
     });
   }
 
-  actions.push({ label: '删除', icon: <DeleteIcon fontSize="small" />, onClick: onDelete, destructive: true });
+  actions.push({
+    label: '删除',
+    icon: <DeleteIcon fontSize='small' />,
+    onClick: onDelete,
+    destructive: true,
+  });
   return actions;
 };
 
-export const groupContextActions = (
-  onDelete: () => void
-): ContextMenuAction[] => [
-  { label: '删除', icon: <DeleteIcon fontSize="small" />, onClick: onDelete, destructive: true },
+export const groupContextActions = (onDelete: () => void): ContextMenuAction[] => [
+  { label: '删除', icon: <DeleteIcon fontSize='small' />, onClick: onDelete, destructive: true },
 ];

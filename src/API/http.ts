@@ -134,13 +134,13 @@ export class NavigationAPI {
     // 认证启用时必须配置 AUTH_SECRET，禁止使用硬编码默认值。
     // 若未配置，降级为禁用认证（记录警告），避免整个 API 崩溃返回 500。
     if (this.authEnabled && !env.AUTH_SECRET) {
-      console.warn('[NavigationAPI] AUTH_SECRET 未配置，认证已降级为禁用。请通过 `wrangler secret put AUTH_SECRET` 设置。');
+      console.warn(
+        '[NavigationAPI] AUTH_SECRET 未配置，认证已降级为禁用。请通过 `wrangler secret put AUTH_SECRET` 设置。'
+      );
       this.authEnabled = false;
     }
     this.secret = env.AUTH_SECRET || '';
   }
-
-
 
   // 初始化数据库表
   // 修改initDB方法，将SQL语句分开执行
@@ -380,14 +380,18 @@ export class NavigationAPI {
   // 分组相关 API
   async getGroups(): Promise<Group[]> {
     const result = await this.db
-      .prepare('SELECT id, name, order_num, is_public, created_at, updated_at FROM groups ORDER BY order_num')
+      .prepare(
+        'SELECT id, name, order_num, is_public, created_at, updated_at FROM groups ORDER BY order_num'
+      )
       .all<Group>();
     return result.results || [];
   }
 
   async getGroup(id: number): Promise<Group | null> {
     const result = await this.db
-      .prepare('SELECT id, name, order_num, is_public, created_at, updated_at FROM groups WHERE id = ?')
+      .prepare(
+        'SELECT id, name, order_num, is_public, created_at, updated_at FROM groups WHERE id = ?'
+      )
       .bind(id)
       .first<Group>();
     return result;
@@ -736,7 +740,6 @@ export class NavigationAPI {
       .catch(() => false);
   }
 
-
   // 导出所有数据
   async exportData(): Promise<ExportData> {
     // 获取所有分组
@@ -875,7 +878,9 @@ export class NavigationAPI {
   // 根据名称查询分组
   async getGroupByName(name: string): Promise<Group | null> {
     const result = await this.db
-      .prepare('SELECT id, name, order_num, is_public, created_at, updated_at FROM groups WHERE name = ?')
+      .prepare(
+        'SELECT id, name, order_num, is_public, created_at, updated_at FROM groups WHERE name = ?'
+      )
       .bind(name)
       .first<Group>();
     return result;
@@ -896,7 +901,11 @@ export class NavigationAPI {
   async batchMoveSites(siteIds: number[], targetGroupId: number): Promise<number> {
     try {
       const result = await this.db
-        .prepare('UPDATE sites SET group_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (' + siteIds.map(() => '?').join(',') + ')')
+        .prepare(
+          'UPDATE sites SET group_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (' +
+            siteIds.map(() => '?').join(',') +
+            ')'
+        )
         .bind(targetGroupId, ...siteIds)
         .run();
       return result.success ? siteIds.length : 0;
@@ -905,5 +914,4 @@ export class NavigationAPI {
       return 0;
     }
   }
-
 }
