@@ -1286,7 +1286,7 @@ export default {
 
                 // 获取 AI 设置（密钥明文与密文均不下发，仅返回是否已配置 + 掩码）
                 else if (path === "ai/settings" && method === "GET") {
-                    const [enabled, baseUrl, model, systemPrompt, storedKey, rawModels, rawToolsEnabled, rawTokenBudget] =
+                    const [enabled, baseUrl, model, systemPrompt, storedKey, rawModels, rawToolsEnabled, rawTokenBudget, rawExtEnabled] =
                         await Promise.all([
                             api.getConfig("ai.enabled"),
                             api.getConfig("ai.baseUrl"),
@@ -1296,6 +1296,7 @@ export default {
                             api.getConfig("ai.models"),
                             api.getConfig("ai.toolsEnabled"),
                             api.getConfig("ai.tokenBudget"),
+                            api.getConfig("ai.extSkillsEnabled"),
                         ]);
 
                     // 解析多模型列表（config 中以 JSON 数组字符串存储）
@@ -1334,6 +1335,7 @@ export default {
                             systemPrompt: systemPrompt || "",
                             toolsEnabled: rawToolsEnabled !== "false",
                             tokenBudget: parseTokenBudget(rawTokenBudget),
+                            extSkillsEnabled: rawExtEnabled !== "false",
                             hasKey: Boolean(storedKey),
                             maskedKey,
                         },
@@ -1429,6 +1431,12 @@ export default {
                         const budget = Math.min(8000, Math.max(1000, data.tokenBudget));
                         await api.setConfig("ai.tokenBudget", String(budget));
                     }
+                    if (data.extSkillsEnabled !== undefined) {
+                        await api.setConfig(
+                            "ai.extSkillsEnabled",
+                            data.extSkillsEnabled ? "true" : "false"
+                        );
+                    }
 
                     return createJsonResponse(
                         { success: true, message: "AI 设置已保存" },
@@ -1476,7 +1484,7 @@ export default {
                         );
                     }
 
-                    const [baseUrl, model, storedKey, customPrompt, rawModels, rawToolsEnabled, rawTokenBudget] =
+                    const [baseUrl, model, storedKey, customPrompt, rawModels, rawToolsEnabled, rawTokenBudget, rawExtEnabled] =
                         await Promise.all([
                             api.getConfig("ai.baseUrl"),
                             api.getConfig("ai.model"),
@@ -1485,12 +1493,14 @@ export default {
                             api.getConfig("ai.models"),
                             api.getConfig("ai.toolsEnabled"),
                             api.getConfig("ai.tokenBudget"),
+                            api.getConfig("ai.extSkillsEnabled"),
                         ]);
 
                     const trimmedBaseUrl = (baseUrl || "").trim();
                     const defaultModel = (model || "").trim();
-                    // AI 技能开关（默认开启）与上下文 Token 预算（节省 token 用）
+                    // AI 技能总开关（默认开启）、扩展技能开关（学术/建议/教学）与上下文 Token 预算
                     const toolsEnabled = rawToolsEnabled !== "false";
+                    const extSkillsEnabled = rawExtEnabled !== "false";
                     const tokenBudget = parseTokenBudget(rawTokenBudget);
 
                     // 解析管理员配置的模型白名单（ai.models JSON 数组）
@@ -1615,13 +1625,15 @@ export default {
                                 stream: false,
                             };
                             if (toolsActive) {
-                                body.tools = AI_SKILL_TOOLS;
+                                body.tools = extSkillsEnabled
+                                    ? [...AI_SKILL_TOOLS, ...EXT_AI_SKILL_TOOLS]
+                                    : AI_SKILL_TOOLS;
                                 body.tool_choice = "auto";
                             }
 
                             log({
                                 level: "info",
-                                message: `AI 对话请求（第 ${round + 1} 轮${toolsActive ? "，启用技能" : "，无技能模式"}）`,
+                                message: `AI 对话请求（第 ${round + 1} 轮${toolsActive ? (extSkillsEnabled ? "，启用基础+扩展技能" : "，启用基础技能") : "，无技能模式"}）`,
                                 path: "/api/ai/chat",
                                 method: "POST",
                                 details: {
@@ -1959,6 +1971,7 @@ interface AiSettingsInput {
     systemPrompt?: string;
     toolsEnabled?: boolean;
     tokenBudget?: number;
+    extSkillsEnabled?: boolean;
     apiKey?: string;
 }
 // ============================================================================
@@ -2287,6 +2300,10 @@ async function executeAISkill(
     name: string,
     args: Record<string, unknown>
 ): Promise<string> {
+    // 扩展技能（学术检索/任务建议/概念教学）分发到独立执行器；基础技能走下方分支
+    if (EXT_SKILL_NAMES.includes(name)) {
+        return executeExtAISkill(env, name, args);
+    }
     const kw = typeof args.keyword === "string" ? args.keyword.trim() : "";
     const tag = typeof args.tag === "string" ? args.tag.trim() : "";
     const group = typeof args.groupName === "string" ? args.groupName.trim() : "";
@@ -2333,7 +2350,9 @@ async function executeAISkill(
             .map((g) => `- ${g.name}（${g.siteCount} 个站点）`)
             .join("\n")}`;
     }
-    return `未知技能「${name}」，可用技能：${AI_SKILL_TOOLS.map((t) => t.function.name).join("、")}`;
+    return `未知技能「${name}」，可用技能：${[...AI_SKILL_TOOLS, ...EXT_AI_SKILL_TOOLS]
+        .map((t) => t.function.name)
+        .join("、")}`;
 }
 
 /** 知识注入兜底：把站内站点库摘要嵌入系统提示词（技能关闭或上游不支持时使用） */
@@ -2361,6 +2380,437 @@ async function buildKnowledgeContext(env: Env, userPrompt: string): Promise<stri
         });
         return "";
     }
+}
+
+// ============================================================================
+// AI 扩展技能（混合分期①）：学术真实检索（Semantic Scholar→arXiv 兜底） /
+//   任务规划建议（源自 wayfinder：先规划不执行、拆成可执行步骤） /
+//   概念教学（源自 teach：一节一概念 + 速查卡；百科真实抓取留待二期）。
+//   省 token 策略：工具描述要求缺失参数用默认值且一轮作答，结果文本压缩字数。
+// ============================================================================
+
+/** 扩展技能名集合：executeAISkill 据此分发到独立执行器 */
+const EXT_SKILL_NAMES = [
+    "search_academic_literature",
+    "recommend_next_actions",
+    "teach_concept",
+];
+
+/** 扩展技能工具定义（OpenAI 兼容）；描述中明确「缺失参数用默认值、直接作答」以减少追问轮次 */
+const EXT_AI_SKILL_TOOLS: AiToolDefinition[] = [
+    {
+        type: "function",
+        function: {
+            name: "search_academic_literature",
+            description:
+                "学术文献/论文检索（Semantic Scholar 主源，失败自动退回 arXiv）。适用于找论文、文献、综述、课题相关研究。结果已精简并附链接，缺失参数一律用默认值（limit=5），若信息足够请直接作答并结束，不要追问。",
+            parameters: {
+                type: "object",
+                properties: {
+                    query: {
+                        type: "string",
+                        description: "检索关键词/课题，例如「大语言模型 评测」或「LLM benchmark」",
+                    },
+                    limit: {
+                        type: "number",
+                        description: "返回条数上限，默认 5，最大 10",
+                    },
+                    year: {
+                        type: "number",
+                        description: "可选：只看某年及之后的文献（例如 2023）",
+                    },
+                },
+                required: ["query"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "recommend_next_actions",
+            description:
+                "任务规划与建议（源自 wayfinder：先规划、不替用户执行，把目标拆成由近及远的可执行步骤，给出明确的下一步）。适用于「接下来怎么做 / 帮我规划 / 想达成某目标 / 该先做什么」。返回精简步骤地图，直接据此作答。",
+            parameters: {
+                type: "object",
+                properties: {
+                    goal: {
+                        type: "string",
+                        description: "用户想达成的目标或当前任务描述",
+                    },
+                },
+                required: ["goal"],
+                additionalProperties: false,
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "teach_concept",
+            description:
+                "概念教学（源自 teach：目标驱动、一节课讲清一个概念，含一句话理解/要点/例子/速查卡/下一步学什么）。适用于「什么是xx / 讲一下xx原理 / 怎么理解xx / 科普 / 入门」。返回教学框架供直接成文。",
+            parameters: {
+                type: "object",
+                properties: {
+                    topic: {
+                        type: "string",
+                        description: "要讲解的概念/名词，例如「提示词工程」或「向量数据库」",
+                    },
+                    audience: {
+                        type: "string",
+                        enum: ["beginner", "intermediate", "advanced"],
+                        description: "受众水平，默认 beginner（初学者）",
+                    },
+                },
+                required: ["topic"],
+                additionalProperties: false,
+            },
+        },
+    },
+];
+
+/** 内置知识词条（教学用；百科真实抓取留待二期，命中时零外部请求、几乎零延迟） */
+interface BaikeSeedEntry {
+    keys: string[];
+    def: string;
+    core: string;
+    points: string[];
+    example: string;
+    pitfall: string;
+    next: string;
+}
+
+const BAIKE_SEED: BaikeSeedEntry[] = [
+    {
+        keys: ["提示词工程", "prompt"],
+        def: "提示词工程 Prompt Engineering：通过设计与优化发送给 AI 模型的指令，让输出更准确、可控、稳定的工程实践。",
+        core: "一句话理解：模型怎么猜，取决于你怎么说——把意图讲清楚、给例子、给边界，答案就稳。",
+        points: [
+            "结构化指令（角色+目标+背景+输出格式）远好于一句话提问",
+            "给示例（Few-shot）比只给描述更可靠",
+            "把大任务拆成小步骤（思维链），模型更易按图索骥",
+            "明确负面约束：告诉模型「不要做什么」",
+        ],
+        example: "「你是一名产品经理，为 XX 功能写一页立项方案，分背景/目标/方案/风险四节，每节不超过 3 行」。",
+        pitfall: "没有万能咒语，效果要靠针对输出迭代调优。",
+        next: "进阶：上下文窗口与 Token 预算、函数调用/Agent、思维链评测。",
+    },
+    {
+        keys: ["向量数据库", "vector"],
+        def: "向量数据库：以向量（高维数值）形式存储并支持相似度检索的数据库，是 RAG 与语义搜索的核心组件。",
+        core: "一句话理解：把内容编码成坐标，找语义相近的邻居，而不是逐字匹配关键词。",
+        points: [
+            "向量来自嵌入模型（Embedding），同一模型编码才有可比性",
+            "相似度常用余弦距离；可按元数据过滤后再召回",
+            "索引（如 HNSW/IVF）决定检索速度与精度取舍",
+            "典型场景：RAG 检索、推荐、去重",
+        ],
+        example: "把 10 万篇文档切片编码入库，提问时把问题也编码，取相似度最高的 Top-5 片段喂给大模型作答。",
+        pitfall: "检索质量上限往往取决于切片质量与嵌入模型，而不是库的规模。",
+        next: "进阶：RAG 评估（检索召回 / 生成忠实度）、混合检索（向量 + BM25）。",
+    },
+    {
+        keys: ["收藏", "书签", "导航站"],
+        def: "收藏/书签管理：把常用网址集中收集、分组归类并快速检索的工作流，避免信息散落与重复查找。",
+        core: "一句话理解：让「要用时找得到」变成「事后一眼找到」，核心是分组清晰 + 检索快。",
+        points: [
+            "分组命名短且直观，层级不要太深（≤2 层）",
+            "定期清点，删掉不再用的收藏",
+            "用搜索代替翻找：按名称/描述/分组检索",
+            "重要站点写上一句用途描述，方便未来想起",
+        ],
+        example: "NaviHive 里把 AI 工具统一放进「AI 工具」分组，每个站点写一句用途，需要时直接用搜索框定位。",
+        pitfall: "收藏越多越没用，关键是持续整理，而不是只进不出。",
+        next: "进阶：用标签/星标做多维度组织，或用脚本批量清理死链。",
+    },
+    {
+        keys: ["思维链", "chain of thought"],
+        def: "思维链 Chain-of-Thought：让模型把推理过程分步写出来再下结论，显著提升复杂推理正确率的提示技巧。",
+        core: "一句话理解：逼模型「先想后答」，把中间步骤摆出来，算错自然变少。",
+        points: [
+            "对数学/逻辑/多步推理类任务效果最好",
+            "实现方式：示范「第一步/第二步…」或要求逐步思考",
+            "代价是多消耗输出 token，简单任务反而没必要",
+            "顺序讲究：先给推理链，再给最终结论",
+        ],
+        example: "「一件衣服 120 元打七折再满减 15 元，实付多少？」答：折后 84 元，满减后 69 元，实付 69 元。",
+        pitfall: "简单问题强加思维链会浪费 token，甚至引入多余错误。",
+        next: "进阶：Let's think step by step 的失效与触发、自我一致性投票。",
+    },
+];
+
+/** 学术论文条目（Semantic Scholar 与 arXiv 归一化的公共形态） */
+interface AcademicPaper {
+    title: string;
+    authors: string[];
+    year: number | null;
+    venue: string;
+    abstract: string;
+    url: string;
+    citationCount: number | null;
+}
+
+function decodeXmlEntities(s: string): string {
+    return s
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&amp;/g, "&");
+}
+
+/** 解析 arXiv Atom XML（标题/作者/摘要/链接/年份），取前 limit 条 */
+function parseArxivAtom(xml: string, limit: number): AcademicPaper[] {
+    const papers: AcademicPaper[] = [];
+    const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
+    let m: RegExpExecArray | null;
+    while ((m = entryRe.exec(xml)) !== null && papers.length < limit) {
+        const body = m[1];
+        if (!body) continue;
+        const grab = (re: RegExp) => {
+            const t = body.match(re);
+            return t?.[1] ? decodeXmlEntities(t[1].trim().replace(/\s+/g, " ")) : "";
+        };
+        const title = grab(/<title[^>]*>([\s\S]*?)<\/title>/);
+        if (!title) continue;
+        const authors: string[] = [];
+        const authorRe = /<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g;
+        let am: RegExpExecArray | null;
+        while ((am = authorRe.exec(body)) !== null) {
+            const name = am[1] ? decodeXmlEntities(am[1].trim()) : "";
+            if (name) authors.push(name);
+        }
+        const yearM = body.match(/<published[^>]*>(\d{4})-/);
+        papers.push({
+            title,
+            authors: authors.slice(0, 6),
+            year: yearM?.[1] ? Number(yearM[1]) : null,
+            venue: "arXiv",
+            abstract: grab(/<summary[^>]*>([\s\S]*?)<\/summary>/).slice(0, 200),
+            url: body.match(/<id[^>]*>([\s\S]*?)<\/id>/)?.[1]?.trim() ?? "",
+            citationCount: null,
+        });
+    }
+    return papers;
+}
+
+/** 学术文献检索：Semantic Scholar 优先，失败/空结果自动退 arXiv（两者均为免密钥公开 API） */
+async function searchAcademicLiterature(
+    query: string,
+    limit: number,
+    year?: number
+): Promise<string> {
+    const kw = (query || "").trim().slice(0, 160);
+    if (!kw) return "请提供检索关键词（query），例如「大语言模型 评测」。";
+    const n = Math.max(1, Math.min(10, Math.floor(Number.isFinite(limit) ? limit : 5)));
+
+    let papers: AcademicPaper[] = [];
+    let source = "";
+
+    // 主源：Semantic Scholar Graph API（公开、免密钥）
+    try {
+        const params = new URLSearchParams({
+            query: kw,
+            limit: String(n),
+            fields: "title,authors,year,venue,abstract,citationCount,url",
+        });
+        if (year && Number.isFinite(year)) params.set("year", `${Math.max(1900, year)}-`);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        const res = await fetch(
+            `https://api.semanticscholar.org/graph/v1/paper/search?${params.toString()}`,
+            { headers: { "User-Agent": "NaviHive-Assistant/1.0" }, signal: controller.signal }
+        );
+        clearTimeout(timer);
+        if (res.ok) {
+            const data = (await res.json()) as {
+                data?: Array<{
+                    title?: string;
+                    authors?: Array<{ name?: string }>;
+                    year?: number;
+                    venue?: string;
+                    abstract?: string;
+                    citationCount?: number;
+                    url?: string;
+                }>;
+            };
+            papers = (data.data || []).slice(0, n).map((p) => ({
+                title: p.title || "未命名论文",
+                authors: (p.authors || [])
+                    .map((a) => (a && a.name ? a.name : ""))
+                    .filter(Boolean)
+                    .slice(0, 6),
+                year: typeof p.year === "number" ? p.year : null,
+                venue: (p.venue || "").slice(0, 60),
+                abstract: (p.abstract || "").slice(0, 200),
+                url: p.url || "",
+                citationCount: typeof p.citationCount === "number" ? p.citationCount : null,
+            }));
+            if (papers.length > 0) source = "Semantic Scholar";
+        }
+    } catch {
+        // 主源异常：走 arXiv 兜底
+    }
+
+    // 兜底源：arXiv（公开 Atom API）
+    if (papers.length === 0) {
+        try {
+            const params = new URLSearchParams({
+                search_query: `all:${kw}`,
+                start: "0",
+                max_results: String(n),
+                sortBy: "relevance",
+            });
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 12000);
+            const res = await fetch(
+                `https://export.arxiv.org/api/query?${params.toString()}`,
+                { signal: controller.signal }
+            );
+            clearTimeout(timer);
+            if (res.ok) {
+                papers = parseArxivAtom(await res.text(), n);
+                if (papers.length > 0) source = "arXiv";
+            }
+        } catch {
+            // 双源均失败：返回空结果提示
+        }
+    }
+
+    if (papers.length === 0) {
+        return "学术文献检索暂无结果或外部接口暂不可用，请稍后重试或更换关键词。";
+    }
+
+    const head = `学术文献检索结果（来源：${source}，关键词「${kw}」，Top ${papers.length}）：`;
+    const lines = papers.map((p, i) => {
+        const meta = [p.year ? `${p.year}` : "", p.venue].filter(Boolean).join(", ");
+        const authors =
+            p.authors.length > 0
+                ? p.authors.slice(0, 3).join("、") + (p.authors.length > 3 ? " 等" : "")
+                : "未知作者";
+        const cite = p.citationCount !== null ? `｜被引 ${p.citationCount}` : "";
+        return `${i + 1}. 《${p.title}》${meta ? `（${meta}）` : ""}｜${authors}${cite}\n   摘要：${p.abstract || "（无摘要）"}\n   链接：${p.url || "（无链接）"}`;
+    });
+    return `${head}\n${lines.join("\n")}`;
+}
+
+/** 任务规划与建议（源自 wayfinder）：按目标意图归类，返回由近及远可执行步骤 + 立即下一步 */
+async function recommendNextActions(env: Env, goal: string): Promise<string> {
+    const g = (goal || "").trim().slice(0, 120);
+    if (!g) {
+        return "请提供你想达成的目标（goal），例如「整理一批 AI 工具站点」或「学会高效使用导航站」。";
+    }
+    const lower = g.toLowerCase();
+    let path = "探索";
+    if (/搜|找|查询|收集|收藏|保存/.test(lower)) path = "检索与收藏";
+    else if (/整理|归类|分类|分组|管理/.test(lower)) path = "整理与结构";
+    else if (/学|了解|掌握|理解|入门/.test(lower)) path = "学习与教学";
+    else if (/推荐|选择|选型|对比|决策/.test(lower)) path = "推荐与决策";
+
+    const stepsMap: Record<string, string[]> = {
+        "检索与收藏": [
+            "明确要找的内容关键词（越具体越好）",
+            "发起站内检索，或让我调用 search_sites 全站搜索",
+            "把满意的结果收藏进合适分组（没有就新建）",
+        ],
+        "整理与结构": [
+            "盘点现有分组与站点归属，找出重复与凌乱项",
+            "规划新分组层次：命名短直观、层级≤2",
+            "批量移动站点归位，删掉过期收藏",
+        ],
+        "学习与教学": [
+            "明确学习主题与目标水平（入门/进阶）",
+            "让我调用 teach_concept 把主题拆成一节节「单课时」",
+            "每学完一节用速查卡回顾，再进入下一节",
+        ],
+        "推荐与决策": [
+            "收集候选站点/方案（可让我检索或推荐）",
+            "对比关键差异：定位、是否免费、维护状态",
+            "先小范围试用再敲定主用，避免一次性全换",
+        ],
+        "探索": [
+            "先浏览站内分组目录与推荐排行，建立全局印象",
+            "锁定 2-3 个最相关的站点逐个上手体验",
+            "有具体疑问随时提问（检索/讲解/规划）",
+        ],
+    };
+    const steps: string[] = stepsMap[path] || stepsMap["探索"] || [];
+
+    // 站内可用资源（失败不影响规划输出）
+    let groupsLine = "（暂无公开分组，可先新建）";
+    let hotLine = "（暂无热点站点）";
+    try {
+        const groups = await listSiteGroups(env, 6);
+        if (groups.length > 0) groupsLine = groups.slice(0, 4).map((gr) => gr.name).join("、");
+        const hot = await getHotSites(env, 3);
+        if (hot.length > 0) hotLine = hot.slice(0, 3).map((s) => `${s.name}(${s.url})`).join("、");
+    } catch {
+        // 忽略：站点库读取失败不影响规划建议
+    }
+
+    return `任务规划（目标：${g}）\n意图类型：${path}\n建议步骤（由近及远）：\n${steps
+        .map((s, i) => `  ${i + 1}. ${s}`)
+        .join("\n")}\n站内可立即利用的资源：\n  - 分组：${groupsLine}\n  - 热点站点：${hotLine}\n立即下一步：完成第 1 步即可开始；若目标仍较模糊，补充背景后我帮你继续细化。`;
+}
+
+/** 概念教学（源自 teach）：命中内置词条零外部请求；未命中返回教学框架供模型直接成文 */
+function teachConcept(topic: string, audience?: string): string {
+    const t = (topic || "").trim().slice(0, 60);
+    const level =
+        audience === "beginner" || audience === "intermediate" || audience === "advanced"
+            ? audience
+            : "beginner";
+    const levelText =
+        level === "beginner" ? "初学者" : level === "intermediate" ? "进阶者" : "高级";
+    if (!t) return "请提供要讲解的概念（topic），例如「提示词工程」。";
+
+    const hit = BAIKE_SEED.find((e) => e.keys.some((k) => t.toLowerCase().includes(k)));
+    if (hit) {
+        return [
+            `概念教学（命中内置词条：${t}，受众：${levelText}）`,
+            `一句话理解：${hit.core}`,
+            `定义：${hit.def}`,
+            `核心要点：\n${hit.points.map((p, i) => `  ${i + 1}. ${p}`).join("\n")}`,
+            `一个例子：${hit.example}`,
+            `常见误区：${hit.pitfall}`,
+            `下一步学什么：${hit.next}`,
+        ].join("\n");
+    }
+    return [
+        `概念教学框架（${t}，受众：${levelText}；站点内置词条暂无该概念，请按以下结构直接讲授，一节一概念并保持精炼）`,
+        `一句话理解：`,
+        `定义（一句话）：`,
+        `核心要点：\n  1.\n  2.\n  3.`,
+        `一个例子：`,
+        `常见误区：`,
+        `速查卡：`,
+        `下一步学什么：`,
+    ].join("\n");
+}
+
+/** 执行单个扩展技能：转换为可回传给模型的精简文本结果（与 executeAISkill 同一接口形态） */
+async function executeExtAISkill(
+    env: Env,
+    name: string,
+    args: Record<string, unknown>
+): Promise<string> {
+    if (name === "search_academic_literature") {
+        const query = typeof args.query === "string" ? args.query : "";
+        const limit = typeof args.limit === "number" ? args.limit : 5;
+        const year = typeof args.year === "number" ? args.year : undefined;
+        return searchAcademicLiterature(query, limit, year);
+    }
+    if (name === "recommend_next_actions") {
+        const goal = typeof args.goal === "string" ? args.goal : "";
+        return recommendNextActions(env, goal);
+    }
+    if (name === "teach_concept") {
+        const topic = typeof args.topic === "string" ? args.topic : "";
+        const audience = typeof args.audience === "string" ? args.audience : "beginner";
+        return teachConcept(topic, audience);
+    }
+    return `未知扩展技能「${name}」，可用技能：${EXT_SKILL_NAMES.join("、")}`;
 }
 
 // 输入验证函数
@@ -2577,6 +3027,12 @@ function validateAISettings(data: AiSettingsInput): string[] {
     }
     if (data.toolsEnabled !== undefined && typeof data.toolsEnabled !== "boolean") {
         errors.push("toolsEnabled 必须是布尔值");
+    }
+    if (
+        data.extSkillsEnabled !== undefined &&
+        typeof data.extSkillsEnabled !== "boolean"
+    ) {
+        errors.push("extSkillsEnabled 必须是布尔值");
     }
     if (
         data.tokenBudget !== undefined &&

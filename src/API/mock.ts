@@ -117,6 +117,8 @@ const mockConfigs: Record<string, string> = {
   'ai.models': '[]',
   'ai.toolsEnabled': 'true',
   'ai.tokenBudget': '2600',
+  // AI 扩展技能开关（学术检索 / 任务建议 / 百科教学；需 toolsEnabled 开启才生效）
+  'ai.extSkillsEnabled': 'true',
 };
 
 // 模拟API实现
@@ -618,6 +620,7 @@ export class MockNavigationClient {
     systemPrompt: string;
     toolsEnabled: boolean;
     tokenBudget: number;
+    extSkillsEnabled: boolean;
     apiKey: string;
   } = {
     enabled: false,
@@ -627,6 +630,7 @@ export class MockNavigationClient {
     systemPrompt: '',
     toolsEnabled: true,
     tokenBudget: 2600,
+    extSkillsEnabled: true,
     apiKey: '',
   };
 
@@ -647,6 +651,7 @@ export class MockNavigationClient {
       systemPrompt: s.systemPrompt,
       toolsEnabled: s.toolsEnabled,
       tokenBudget: s.tokenBudget,
+      extSkillsEnabled: s.extSkillsEnabled,
       hasKey: Boolean(s.apiKey),
       maskedKey: s.apiKey ? `****${s.apiKey.slice(-4)}` : '',
     };
@@ -686,6 +691,10 @@ export class MockNavigationClient {
       s.toolsEnabled = data.toolsEnabled;
       mockConfigs['ai.toolsEnabled'] = data.toolsEnabled ? 'true' : 'false';
     }
+    if (data.extSkillsEnabled !== undefined) {
+      s.extSkillsEnabled = data.extSkillsEnabled;
+      mockConfigs['ai.extSkillsEnabled'] = data.extSkillsEnabled ? 'true' : 'false';
+    }
     if (data.tokenBudget !== undefined && Number.isFinite(data.tokenBudget)) {
       s.tokenBudget = Math.min(8000, Math.max(1000, Math.round(data.tokenBudget)));
       mockConfigs['ai.tokenBudget'] = String(s.tokenBudget);
@@ -723,16 +732,23 @@ export class MockNavigationClient {
       };
     }
 
-    const skill = this.detectSkill(userText);
+    const skill = this.detectSkill(userText, this.mockAISettings.extSkillsEnabled);
     if (skill) {
-      const rows = this.runMockSkill(skill.name, skill.args);
+      const isExtSkill = [
+        'search_academic_literature',
+        'recommend_next_actions',
+        'teach_concept',
+      ].includes(skill.name);
+      const reply = isExtSkill
+        ? `（模拟技能调用：${skill.name}）\n${this.runExtMockSkill(skill.name, skill.args)}`
+        : `（模拟技能调用：${skill.name}）\n${this.renderSkillReply(
+            skill.name,
+            this.runMockSkill(skill.name, skill.args),
+            skill.args
+          )}`;
       return {
         success: true,
-        reply: `（模拟技能调用：${skill.name}）\n${this.renderSkillReply(
-          skill.name,
-          rows,
-          skill.args
-        )}`,
+        reply,
         model: activeModel,
         skillsUsed: [skill.name],
       };
@@ -746,7 +762,10 @@ export class MockNavigationClient {
     };
   }
   /** 规则式意图识别：从用户提问中判断应调用的技能（模拟真实模型的 function_calls） */
-  private detectSkill(userText: string): { name: string; args: Record<string, unknown> } | null {
+  private detectSkill(
+    userText: string,
+    includeExt = true
+  ): { name: string; args: Record<string, unknown> } | null {
     const t = userText.toLowerCase();
     if (/有哪些分组|分组有哪些|怎么分类|哪些分类|什么分类/.test(t)) {
       return { name: 'list_groups', args: {} };
@@ -759,6 +778,18 @@ export class MockNavigationClient {
     );
     if (groupMatch) {
       return { name: 'get_group_sites', args: { groupName: groupMatch.name } };
+    }
+    // 扩展技能（可在设置中关闭）：学术检索 / 任务建议 / 概念讲解，放在站内通用兜底之前
+    if (includeExt) {
+      if (/学术|论文|文献|arxiv|综述|研究进展/.test(t)) {
+        return { name: 'search_academic_literature', args: { query: userText } };
+      }
+      if (/接下来|下一步|规划|计划|怎么做|该怎么做|任务|怎么弄|安排/.test(t)) {
+        return { name: 'recommend_next_actions', args: { goal: userText } };
+      }
+      if (/什么是|是什么|讲讲|讲一下|解释|原理|科普|教学|入门|介绍一下|怎么理解/.test(t)) {
+        return { name: 'teach_concept', args: { topic: userText } };
+      }
     }
     if (/分组|站点|网站|分类/.test(t)) {
       return { name: 'list_groups', args: {} };
@@ -875,6 +906,31 @@ export class MockNavigationClient {
       0,
       40
     )}）`;
+  }
+
+  /** 扩展技能模拟执行器：返回可直接展示的文本（学术用样例数据，建议/教学用规则生成） */
+  private runExtMockSkill(name: string, args: Record<string, unknown>): string {
+    if (name === 'search_academic_literature') {
+      const query = (args.query as string) || '你的课题';
+      return [
+        `学术文献检索结果（模拟样例，关键词「${query}」；真实模式走 Semantic Scholar + arXiv 兜底）：`,
+        `1. 《Large Language Models are Few-Shot Learners》| 2020 | arXiv | 被引 2.4 万+ | TL;DR：GPT-3 证明超大模型少样本即可学会任务`,
+        `2. 《Chain-of-Thought Prompting Elicits Reasoning in LLMs》| 2022 | NeurIPS | 被引 1.1 万+ | TL;DR：让模型分步推理大幅提升数学/逻辑题准确率`,
+        `3. 《Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks》| 2020 | arXiv | 被引 8 千+ | TL;DR：检索外部知识注入生成，缓解幻觉`,
+      ].join('\n');
+    }
+    if (name === 'recommend_next_actions') {
+      const goal = (args.goal as string) || '你的目标';
+      return `任务规划（模拟，目标：「${goal}」）\n意图类型：规划与执行\n建议步骤：\n  1. 先明确成功的衡量标准（可观察、可验收）\n  2. 拆成 2-4 个可独立完成的子任务\n  3. 为今天选一个「最小可执行下一步」并限时完成\n立即下一步：现在就开始第 3 步，完成后回来复盘。`;
+    }
+    if (name === 'teach_concept') {
+      const topic = (args.topic as string) || '该概念';
+      const audience = (args.audience as string) || 'beginner';
+      const levelText =
+        audience === 'beginner' ? '初学者' : audience === 'intermediate' ? '进阶者' : '高级';
+      return `概念教学（模拟，主题：「${topic}」，受众：${levelText}）\n一句话理解：（请你试着一句话讲清它）\n核心要点：\n  1.（要点一）\n  2.（要点二）\n  3.（要点三）\n一个例子：（用一个身边的例子说明）\n常见误区：（人们最容易弄错的地方）\n速查卡：（3 行以内记住核心）\n下一步学什么：（给出一个进阶方向）`;
+    }
+    return `（模拟技能 ${name} 暂无演示数据）`;
   }
 
   private toLimit(raw: unknown, def: number): number {

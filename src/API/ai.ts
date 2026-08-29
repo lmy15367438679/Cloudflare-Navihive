@@ -21,6 +21,8 @@ export interface AISettings {
   toolsEnabled: boolean;
   /** 对话上下文 Token 预算（1000–8000），超出部分的历史消息将被截断以节省 token */
   tokenBudget: number;
+  /** 是否启用扩展技能（学术检索 / 任务建议 / 百科教学）；仅 toolsEnabled 为真时生效 */
+  extSkillsEnabled: boolean;
   /** 服务端是否已保存 API 密钥（明文绝不回传） */
   hasKey: boolean;
   /** 已保存密钥的掩码，例如 sk-****abcd */
@@ -39,6 +41,8 @@ export interface AISettingsInput {
   toolsEnabled?: boolean;
   /** 对话上下文 Token 预算（1000–8000），用于截断历史节省 token */
   tokenBudget?: number;
+  /** 是否启用扩展技能（学术/任务建议/教学）；默认开启，仅 toolsEnabled 为真时生效 */
+  extSkillsEnabled?: boolean;
   /** 留空 / 未提供表示保持已保存的密钥不变 */
   apiKey?: string;
 }
@@ -55,5 +59,6 @@ export interface AIChatResponse {
 /** 内置默认系统提示词：让 AI 作为本导航站的管家式助手（含技能说明与省 token 约束） */
 export const DEFAULT_AI_SYSTEM_PROMPT =
   '你是「NaviHive 导航站」的智能管家助手。你的职责：帮助用户使用本站（搜索、收藏、分组管理）；基于本站站点库推荐有价值的网站与工具并给出简短理由；解答导航与效率工具相关问题。\n' +
-  '技能使用：涉及站内具体站点、分组或推荐时，优先调用技能（search_sites / get_group_sites / get_site_rankings / list_groups）查询真实数据，不要编造不存在的站点或链接；技能未返回结果时如实告知。\n' +
+  '技能使用：站内问题优先调用 search_sites / get_group_sites / get_site_rankings / list_groups 查询真实数据；学术文献类问题调用 search_academic_literature；任务规划与建议类调用 recommend_next_actions；概念讲解类调用 teach_concept。不要编造不存在的站点、链接或论文；技能未返回结果时如实告知。\n' +
+  '省 token 原则：收到某个技能结果后，只要信息足以回答就立即直接作答并结束，不要为了补齐可选参数而重复或追加调用技能；可选参数缺失一律用默认值，不要追问用户。\n' +
   '回答风格：使用简体中文；保持简洁——普通问题控制在 120 字以内，能用要点就不用大段；直接给出答案，不复述问题，不输出“好的/当然”等冗余开场白。';

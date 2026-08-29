@@ -74,6 +74,7 @@ export default function AIAssistant({
     systemPrompt: '',
     toolsEnabled: true,
     tokenBudget: 2600,
+    extSkillsEnabled: true,
     hasKey: false,
     maskedKey: '',
   });
@@ -187,6 +188,7 @@ export default function AIAssistant({
       models: settings.models,
       systemPrompt: settings.systemPrompt,
       toolsEnabled: settings.toolsEnabled,
+      extSkillsEnabled: settings.extSkillsEnabled,
       tokenBudget: Math.min(8000, Math.max(1000, Math.round(Number(budgetInput) || 2600))),
       // 留空 = 保持服务端已保存的密钥不变
       apiKey: apiKey || undefined,
@@ -340,6 +342,27 @@ export default function AIAssistant({
                     将自动降级为站点库摘要模式，保证基础问答可用。
                   </Typography>
                 </Box>
+
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings.extSkillsEnabled}
+                      onChange={(e) =>
+                        setSettings({ ...settings, extSkillsEnabled: e.target.checked })
+                      }
+                      color='primary'
+                    />
+                  }
+                  label='启用扩展技能（学术检索 / 任务建议 / 教学）'
+                />
+                <Typography
+                  variant='caption'
+                  sx={{ color: 'var(--text-secondary)', display: 'block', mx: 1.5 }}
+                >
+                  扩展技能：search_academic_literature（学术文献，Semantic Scholar + arXiv 兜底）、
+                  recommend_next_actions（任务规划建议）、teach_concept（概念教学）。
+                  与基础技能一致：上游不支持或接口异常时自动降级，不影响基础问答与 token 预算。
+                </Typography>
 
                 <TextField
                   label='上下文 Token 预算'
