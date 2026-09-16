@@ -24,6 +24,8 @@ interface SidebarProps {
   activeGroupId: number | null;
   isAuthenticated: boolean;
   viewMode: 'authenticated' | 'readonly';
+  /** 是否处于游客会话（只读浏览公开内容） */
+  isGuestMode?: boolean;
   configs: Record<string, string>;
   variant?: 'hover' | 'static';
   onGroupClick: (groupId: number) => void;
@@ -42,6 +44,7 @@ const Sidebar = memo(function Sidebar({
   activeGroupId,
   isAuthenticated,
   viewMode,
+  isGuestMode = false,
   configs,
   variant = 'hover',
   onGroupClick,
@@ -341,26 +344,45 @@ const Sidebar = memo(function Sidebar({
           )}
 
           {viewMode === 'readonly' ? (
-            <ListItemButton
-              onClick={onLogout}
-              sx={{
-                borderRadius: 'var(--radius-md)',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 32, color: 'var(--text-secondary)' }}>
-                <SettingsIcon fontSize='small' />
-              </ListItemIcon>
-              <ListItemText
-                primary='管理员登录'
-                primaryTypographyProps={{
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  color: 'var(--text-secondary)',
+            <>
+              {isGuestMode && (
+                <Box
+                  sx={{
+                    px: 1,
+                    py: 0.75,
+                    mb: 0.5,
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '12px',
+                    lineHeight: 1.5,
+                    color: 'var(--color-accent)',
+                    bgcolor: 'var(--color-accent-dim)',
+                    border: '1px solid var(--color-accent-muted)',
+                  }}
+                >
+                  游客模式 · 仅浏览公开内容
+                </Box>
+              )}
+              <ListItemButton
+                onClick={onLogout}
+                sx={{
+                  borderRadius: 'var(--radius-md)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
                 }}
-              />
-            </ListItemButton>
+              >
+                <ListItemIcon sx={{ minWidth: 32, color: 'var(--text-secondary)' }}>
+                  <SettingsIcon fontSize='small' />
+                </ListItemIcon>
+                <ListItemText
+                  primary={isGuestMode ? '登录管理员' : '管理员登录'}
+                  primaryTypographyProps={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'var(--text-secondary)',
+                  }}
+                />
+              </ListItemButton>
+            </>
           ) : (
             <ListItemButton
               onClick={onLogout}

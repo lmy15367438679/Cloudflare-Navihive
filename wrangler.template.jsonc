@@ -32,6 +32,11 @@
     //   wrangler secret put AI_SECRET
     // AI_SECRET：用于 AES-256-GCM 加密存储 AI API 密钥（可选，未配置时兜底使用 AUTH_SECRET）
     "vars": {
-        "AUTH_ENABLED": "true"
+        // 启用认证；设为 "false" 可关闭整个登录墙
+        "AUTH_ENABLED": "true",
+        // 只读路由是否也要求登录：
+        //   "false"（默认）→ 开放游客模式，未登录可浏览 is_public=1 内容，登录页显示「游客访问」入口
+        //   "true"         → 完全私密，所有内容（含只读）都需要登录，登录页不显示游客入口
+        "AUTH_REQUIRED_FOR_READ": "false"
     }
 }

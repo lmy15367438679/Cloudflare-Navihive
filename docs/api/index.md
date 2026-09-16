@@ -73,10 +73,17 @@ Authorization: Bearer <your-token>
 - `GET /api/sites`
 - `GET /api/groups-with-sites`
 - `GET /api/configs`
+- `GET /api/auth/enabled`（查询认证配置与游客模式开关）
 
 但只能看到 `is_public=1` 的数据。
 
 所有写操作（POST/PUT/DELETE）始终需要认证。
+
+前端登录页会调用 `GET /api/auth/enabled` 读取 `{ enabled, guestAvailable }`：
+- `guestAvailable: true` → 登录页展示「游客访问」入口，访客可只读浏览公开内容（会话记录在 localStorage，刷新后保持）
+- `guestAvailable: false` → 隐藏游客入口，所有路由均需登录
+
+详见 [认证 API](/api/authentication)。
 
 ## 更多信息
 

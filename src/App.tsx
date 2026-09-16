@@ -236,11 +236,14 @@ function App() {
     isAuthChecking,
     isAuthRequired,
     isAuthenticated,
+    guestAvailable,
+    isGuestMode,
     loginError,
     loginLoading,
     viewMode,
     checkAuthStatus,
     handleLogin,
+    handleGuestLogin,
     handleLogout,
   } = useAuth({
     api,
@@ -771,7 +774,13 @@ function App() {
             bgcolor: 'var(--color-canvas)',
           }}
         >
-          <LoginForm onLogin={handleLogin} loading={loginLoading} error={loginError} />
+          <LoginForm
+            onLogin={handleLogin}
+            onGuestLogin={handleGuestLogin}
+            guestAvailable={guestAvailable}
+            loading={loginLoading}
+            error={loginError}
+          />
         </Box>
       </ThemeProvider>
     );
@@ -855,6 +864,7 @@ function App() {
             activeGroupId={activeGroupId}
             isAuthenticated={isAuthenticated}
             viewMode={isAuthenticated ? 'authenticated' : 'readonly'}
+            isGuestMode={isGuestMode}
             configs={configs}
             onGroupClick={handleSidebarGroupClick}
             onAddGroup={handleOpenAddGroup}
@@ -869,6 +879,7 @@ function App() {
             title={configs['site.name'] ?? ''}
             darkMode={darkMode}
             isAuthenticated={isAuthenticated}
+            isGuestMode={isGuestMode}
             onToggleTheme={toggleTheme}
             onOpenExport={() => handleExportData(groups, configs)}
             onOpenImport={handleOpenImport}

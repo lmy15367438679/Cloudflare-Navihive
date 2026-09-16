@@ -127,6 +127,40 @@ if (data.authenticated) {
 }
 ```
 
+## GET /api/auth/enabled
+
+查询认证配置，用于登录页决定是否需要登录以及是否展示「游客访问」入口。
+
+### 请求
+
+无需请求体，无需认证。
+
+### 响应
+
+```json
+{
+  "enabled": true,
+  "guestAvailable": true
+}
+```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `enabled` | boolean | 是否启用认证（`AUTH_ENABLED`） |
+| `guestAvailable` | boolean | 是否开放游客访问：`enabled === true` 且 `AUTH_REQUIRED_FOR_READ !== 'true'` |
+
+### 使用示例
+
+```javascript
+// 登录页初始化时读取配置
+const response = await fetch('/api/auth/enabled');
+const { enabled, guestAvailable } = await response.json();
+
+// guestAvailable 为 true 时，登录页展示「游客访问」按钮
+```
+
 ## 安全特性
 
 ### 1. 密码加密
@@ -178,6 +212,21 @@ pnpm hash-password your-password
 - 未登录用户可以访问公开内容（`is_public=1`）
 - 登录用户可以访问所有内容
 - 所有写操作仍需要登录
+
+#### 前端游客会话
+
+`/api/auth/enabled` 返回 `guestAvailable: true` 时，登录页会展示「游客访问 · 浏览公开内容」入口：
+
+| 环节 | 行为 |
+|------|------|
+| 点击游客访问 | `viewMode` 切换为 `readonly`，`isAuthenticated` 保持 `false`，不生成 Token |
+| 数据范围 | 仅显示 `is_public=1` 的分组与站点（后端按认证状态过滤，前端不缓存私密数据） |
+| 会话持久化 | 写入 `localStorage` 键 `navihive_guest_mode`，刷新后跳过登录墙直接进入只读模式 |
+| 身份标识 | 顶栏标题旁显示「游客」徽标，侧栏底部显示「游客模式 · 仅浏览公开内容」提示 |
+| 进入管理员 | 点击侧栏「登录管理员」→ 清除游客标记 → 回到登录页，登录成功后切为 `edit` 模式 |
+| 关闭游客模式 | `AUTH_REQUIRED_FOR_READ=true` 时 `guestAvailable` 为 `false`，登录页隐藏入口，已存在的游客标记在下次加载时被清除 |
+
+> 注：游客会话是纯前端状态，不占用后端会话资源；游客不产生 Token，因此无法访问任何写接口（写接口均要求认证）。
 
 ## 错误码
 

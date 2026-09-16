@@ -589,9 +589,12 @@ export default {
                 }
 
                 // 认证启用状态检查端点
+                // guestAvailable: 认证启用且 AUTH_REQUIRED_FOR_READ != 'true' 时，登录页提供「游客访问」入口
                 if (path === "auth/enabled" && method === "GET") {
+                    const authEnabled = api.isAuthEnabled();
+                    const guestAvailable = authEnabled && env.AUTH_REQUIRED_FOR_READ !== 'true';
                     return createJsonResponse(
-                        { enabled: api.isAuthEnabled() },
+                        { enabled: authEnabled, guestAvailable },
                         request
                     );
                 }

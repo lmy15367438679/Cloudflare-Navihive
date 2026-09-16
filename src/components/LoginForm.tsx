@@ -14,11 +14,21 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 interface LoginFormProps {
   onLogin: (username: string, password: string, rememberMe: boolean) => void;
+  /** 游客访问：无需登录即可浏览公开内容 */
+  onGuestLogin?: () => void;
+  /** 是否开放游客访问（由后端 AUTH_REQUIRED_FOR_READ 决定） */
+  guestAvailable?: boolean;
   loading?: boolean;
   error?: string | null;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onLogin, loading = false, error = null }) => {
+const LoginForm: React.FC<LoginFormProps> = ({
+  onLogin,
+  onGuestLogin,
+  guestAvailable = false,
+  loading = false,
+  error = null,
+}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -161,6 +171,59 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, loading = false, error =
             {loading ? <CircularProgress size={24} color='inherit' /> : '登录'}
           </Button>
         </Box>
+
+        {guestAvailable && onGuestLogin && (
+          <Box sx={{ mt: 1 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                my: 1.5,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <Box sx={{ flex: 1, height: '1px', bgcolor: 'var(--color-border)' }} />
+              <Typography variant='caption' sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                或
+              </Typography>
+              <Box sx={{ flex: 1, height: '1px', bgcolor: 'var(--color-border)' }} />
+            </Box>
+            <Button
+              type='button'
+              fullWidth
+              variant='outlined'
+              onClick={onGuestLogin}
+              disabled={loading}
+              size='large'
+              sx={{
+                py: 1.2,
+                borderRadius: 2,
+                borderColor: 'var(--color-border)',
+                color: 'var(--text-secondary)',
+                '&:hover': {
+                  borderColor: 'var(--color-accent)',
+                  color: 'var(--color-accent)',
+                  bgcolor: 'transparent',
+                },
+              }}
+            >
+              游客访问 · 浏览公开内容
+            </Button>
+            <Typography
+              variant='caption'
+              sx={{
+                display: 'block',
+                textAlign: 'center',
+                mt: 1,
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              无需账号密码，仅可查看公开的分组与站点
+            </Typography>
+          </Box>
+        )}
       </Paper>
     </Box>
   );

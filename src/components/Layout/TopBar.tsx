@@ -19,6 +19,8 @@ interface TopBarProps {
   title: string;
   darkMode: boolean;
   isAuthenticated: boolean;
+  /** 是否处于游客会话（只读浏览公开内容） */
+  isGuestMode?: boolean;
   onToggleTheme: () => void;
   onOpenExport: () => void;
   onOpenImport: () => void;
@@ -42,6 +44,7 @@ export default function TopBar({
   title,
   darkMode,
   isAuthenticated,
+  isGuestMode = false,
   onToggleTheme,
   onOpenExport,
   onOpenImport,
@@ -97,6 +100,26 @@ export default function TopBar({
         >
           {title}
         </Typography>
+        {isGuestMode && (
+          <Box
+            sx={{
+              ml: 1,
+              px: 1,
+              py: 0.25,
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              lineHeight: 1.4,
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              color: 'var(--color-accent)',
+              bgcolor: 'var(--color-accent-dim)',
+              border: '1px solid var(--color-accent-muted)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            游客
+          </Box>
+        )}
         {isGroupView && (
           <Tooltip title='回到全部'>
             <IconButton

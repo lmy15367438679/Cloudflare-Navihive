@@ -208,9 +208,13 @@ export class MockNavigationClient {
 
   // 检查认证是否已启用
   async isAuthEnabled(): Promise<boolean> {
+    return (await this.getAuthConfig()).enabled;
+  }
+
+  // 获取认证配置（Mock 环境默认启用认证 + 开放游客模式）
+  async getAuthConfig(): Promise<{ enabled: boolean; guestAvailable: boolean }> {
     await new Promise((resolve) => setTimeout(resolve, 100));
-    // Mock 环境中默认启用认证
-    return true;
+    return { enabled: true, guestAvailable: true };
   }
 
   async getGroups(): Promise<Group[]> {

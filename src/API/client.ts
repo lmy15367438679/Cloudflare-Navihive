@@ -159,16 +159,25 @@ export class NavigationClient {
 
   // 检查认证是否已启用
   async isAuthEnabled(): Promise<boolean> {
+    return (await this.getAuthConfig()).enabled;
+  }
+
+  // 获取认证配置：认证是否启用 + 游客模式是否可用
+  // guestAvailable 为 true 时，登录页展示「游客访问」入口，访客可浏览公开内容（is_public=1）
+  async getAuthConfig(): Promise<{ enabled: boolean; guestAvailable: boolean }> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/enabled`, {
         method: 'GET',
         credentials: 'include',
       });
-      if (!response.ok) return false;
+      if (!response.ok) return { enabled: false, guestAvailable: false };
       const data = await response.json();
-      return data.enabled === true;
+      return {
+        enabled: data.enabled === true,
+        guestAvailable: data.guestAvailable === true,
+      };
     } catch {
-      return false;
+      return { enabled: false, guestAvailable: false };
     }
   }
 

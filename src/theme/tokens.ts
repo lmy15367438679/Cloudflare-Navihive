@@ -22,6 +22,7 @@ export const tokens = {
     accent: '#22C55E', // 品牌主色（绿）
     accentDim: '#166534', // 主色弱化底（选中态 / 文字强调底）
     accentHover: '#16A34A', // 主色 hover
+    accentMuted: 'rgba(34, 197, 94, 0.35)', // 主色弱化边框（badge 描边等）
     destructive: '#EF4444',
     destructiveDim: 'rgba(239, 68, 68, 0.12)',
     success: '#22C55E',
@@ -53,6 +54,7 @@ export const tokens = {
     accent: '#15803D', // 浅色主色（绿-700，白底对比度 ≥4.5:1）
     accentHover: '#166534',
     accentDim: 'rgba(34, 197, 94, 0.12)', // 浅色选中底
+    accentMuted: 'rgba(21, 128, 61, 0.35)', // 浅色主色弱化边框
     destructive: '#DC2626',
     destructiveDim: 'rgba(239, 68, 68, 0.1)',
     success: '#16A34A',
@@ -110,6 +112,7 @@ export const cssVariables = `
   --color-accent: ${tokens.color.accent};
   --color-accent-dim: ${tokens.color.accentDim};
   --color-accent-hover: ${tokens.color.accentHover};
+  --color-accent-muted: ${tokens.color.accentMuted};
   --color-destructive: ${tokens.color.destructive};
   --color-destructive-dim: ${tokens.color.destructiveDim};
   --color-success: ${tokens.color.success};
@@ -158,6 +161,7 @@ export const cssVariables = `
   --color-accent: ${tokens.light.accent};
   --color-accent-hover: ${tokens.light.accentHover};
   --color-accent-dim: ${tokens.light.accentDim};
+  --color-accent-muted: ${tokens.light.accentMuted};
   --color-destructive: ${tokens.light.destructive};
   --color-destructive-dim: ${tokens.light.destructiveDim};
   --color-success: ${tokens.light.success};
