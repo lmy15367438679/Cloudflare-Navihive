@@ -33,6 +33,7 @@ dist-ssr
 npm-lock.yaml
 package-lock.json
 wrangler.jsonc
+wrangler.test.jsonc
 
 开发调试.md
 UPDATE.md
