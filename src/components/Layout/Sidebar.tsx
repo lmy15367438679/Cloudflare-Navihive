@@ -150,7 +150,10 @@ const Sidebar = memo(function Sidebar({
       <Box sx={{ flex: 1, overflowY: 'auto', px: 0.5 }}>
         <List dense>
           <ListItemButton
-            onClick={onShowAll}
+            onClick={() => {
+              onShowAll();
+              onSidebarCollapse?.();
+            }}
             selected={activeGroupId === null}
             sx={{
               borderRadius: 'var(--radius-md)',
@@ -187,7 +190,10 @@ const Sidebar = memo(function Sidebar({
               placement='right'
             >
               <ListItemButton
-                onClick={() => onGroupClick(group.id as number)}
+                onClick={() => {
+                  onGroupClick(group.id as number);
+                  onSidebarCollapse?.();
+                }}
                 selected={activeGroupId === group.id}
                 sx={{
                   borderRadius: 'var(--radius-md)',

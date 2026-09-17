@@ -75,6 +75,7 @@ export default function TopBar({
         <IconButton
           size='small'
           onClick={onMobileMenuOpen}
+          aria-label='打开导航菜单'
           sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'var(--text-secondary)' }}
         >
           <MenuIcon fontSize='small' />
@@ -140,6 +141,7 @@ export default function TopBar({
             <IconButton
               size='small'
               onClick={(e) => setMenuAnchor(e.currentTarget)}
+              aria-label='打开管理菜单'
               sx={{ color: 'var(--text-secondary)' }}
             >
               <MoreVertIcon fontSize='small' />

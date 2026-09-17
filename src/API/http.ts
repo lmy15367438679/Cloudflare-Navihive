@@ -679,6 +679,8 @@ export class NavigationAPI {
     // 将结果转换为键值对对象
     const configs: Record<string, string> = {};
     for (const config of result.results || []) {
+      // 旧版本可能仍保留已退役功能的配置；数据留在 D1，但不再进入应用或导出结果。
+      if (config.key.startsWith('ai.')) continue;
       configs[config.key] = config.value;
     }
 
@@ -865,8 +867,8 @@ export class NavigationAPI {
 
       // 导入配置数据
       for (const [key, value] of Object.entries(data.configs)) {
-        if (key !== 'DB_INITIALIZED') {
-          // 跳过数据库初始化标志
+        if (key !== 'DB_INITIALIZED' && !key.startsWith('ai.')) {
+          // 跳过数据库初始化标志和旧版本中已经退役的配置。
           await this.setConfig(key, value);
         }
       }

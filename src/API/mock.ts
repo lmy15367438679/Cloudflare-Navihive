@@ -108,7 +108,7 @@ const mockConfigs: Record<string, string> = {
   'site.title': '我的导航站',
   'site.name': '个人导航',
   'site.customCss': '',
-  'site.glassEffect': 'true',
+  'site.glassEffect': 'false',
   // 与前端 DEFAULT_CONFIGS 保持一致
   'site.particlesEnabled': 'false',
   'site.backgroundBlur': 'false',
@@ -600,7 +600,9 @@ export class MockNavigationClient {
 
       // 导入配置数据
       Object.entries(data.configs).forEach(([key, value]) => {
-        mockConfigs[key] = value;
+        if (key !== 'DB_INITIALIZED' && !key.startsWith('ai.')) {
+          mockConfigs[key] = value;
+        }
       });
 
       return {

@@ -607,6 +607,11 @@ export default {
           }
         }
 
+        // 已退役的接口直接表现为不存在，不进入认证或业务路由。
+        if (path === 'ai' || path.startsWith('ai/')) {
+          return createResponse('API路径不存在', request, { status: 404 });
+        }
+
         // 验证中间件 - 条件认证
         let isAuthenticated = false; // 记录认证状态
 
