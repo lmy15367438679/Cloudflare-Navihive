@@ -38,9 +38,6 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Setup wrangler config
-        run: cp wrangler.template.jsonc wrangler.jsonc
-
       - name: Deploy to Cloudflare Workers
         run: npx wrangler deploy
         env:
