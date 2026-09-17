@@ -13,12 +13,12 @@
  */
 export const tokens = {
   color: {
-    canvas: '#020617', // 页面底色
-    surface: '#0F111A', // 侧栏 / 顶栏
-    card: '#151720', // 卡片
-    cardHover: '#1A1C27', // 卡片 hover
-    elevated: '#1C1F2B', // 弹窗 / 菜单
-    elevatedHover: '#242733', // 浮层 hover
+    canvas: '#0B0F14', // 页面底色
+    surface: '#10161D', // 侧栏 / 顶栏
+    card: '#121922', // 卡片
+    cardHover: '#151E28', // 卡片 hover
+    elevated: '#18212C', // 弹窗 / 菜单
+    elevatedHover: '#1E2936', // 浮层 hover
     accent: '#22C55E', // 品牌主色（绿）
     accentDim: '#166534', // 主色弱化底（选中态 / 文字强调底）
     accentHover: '#16A34A', // 主色 hover
@@ -29,8 +29,8 @@ export const tokens = {
     warning: '#F59E0B',
     info: '#38BDF8',
     muted: '#94A3B8',
-    border: 'rgba(148, 163, 184, 0.15)', // 柔和低透边框（与浅色一致的 premium 质感）
-    borderStrong: 'rgba(148, 163, 184, 0.28)',
+    border: 'rgba(148, 163, 184, 0.14)',
+    borderStrong: 'rgba(148, 163, 184, 0.3)',
     focusRing: '#22C55E', // 键盘焦点环
     overlay: 'rgba(2, 6, 23, 0.55)', // 模态 scrim
   },
@@ -42,10 +42,10 @@ export const tokens = {
     onAccent: '#052E16', // 主色按钮上的文字（深绿底）
   },
   light: {
-    canvas: '#F1F5F9', // 比纯白略灰，增强与白色卡片的层次
+    canvas: '#F4F6F8',
     surface: '#FFFFFF',
     card: '#FFFFFF',
-    cardHover: '#F8FAFC',
+    cardHover: '#F8FAFB',
     elevated: '#FFFFFF',
     elevatedHover: '#F8FAFC',
     border: 'rgba(15, 23, 42, 0.08)', // 柔和低透边框（premium 质感，替代生硬实色）
@@ -69,9 +69,9 @@ export const tokens = {
       disabled: '#94A3B8',
       onAccent: '#FFFFFF',
     },
-    shadowSm: '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06)',
-    shadowMd: '0 4px 8px rgba(15, 23, 42, 0.04), 0 8px 16px rgba(15, 23, 42, 0.06)',
-    shadowLg: '0 8px 16px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.08)',
+    shadowSm: '0 1px 2px rgba(15, 23, 42, 0.04)',
+    shadowMd: '0 8px 24px rgba(15, 23, 42, 0.08)',
+    shadowLg: '0 16px 40px rgba(15, 23, 42, 0.12)',
   },
   radius: {
     sm: '6px',
@@ -91,8 +91,8 @@ export const tokens = {
     16: '64px',
   },
   font: {
-    heading: "'Poppins', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
-    body: "'Open Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
+    heading: "'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
+    body: "'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
   },
   layout: {
     topbarHeight: '56px',
@@ -143,9 +143,9 @@ export const cssVariables = `
   --spacing-8: ${tokens.spacing[8]};
   --spacing-12: ${tokens.spacing[12]};
   --spacing-16: ${tokens.spacing[16]};
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.35), 0 16px 32px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.16);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.28);
   --sidebar-width: ${tokens.layout.sidebarWidth};
   --topbar-height: ${tokens.layout.topbarHeight};
 }

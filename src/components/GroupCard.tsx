@@ -19,9 +19,11 @@ import {
 import {
   arrayMove,
   SortableContext,
+  useSortable,
   sortableKeyboardCoordinates,
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 // 引入Material UI组件
 import {
   Paper,
@@ -39,14 +41,12 @@ import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 
 // 更新组件属性接口
 interface GroupCardProps {
   group: GroupWithSites;
-  index?: number; // 用于Draggable的索引，仅在分组排序模式下需要
-  sortMode: 'None' | 'GroupSort' | 'SiteSort';
+  sortMode: 'None' | 'SiteSort';
   currentSortingGroupId: number | null;
   viewMode?: 'readonly' | 'edit'; // 访问模式
   /** 选中分组自动展开信号（id 命中时展开该分组） */
@@ -61,12 +61,8 @@ interface GroupCardProps {
   configs?: Record<string, string>; // 传入配置
   groups?: GroupWithSites[]; // 全部分组列表（用于快速移动）
   onMoveGroup?: (siteId: number, targetGroupId: number) => void; // 快速移动回调
-  /** 当前分组在完整分组列表中的位置（用于相邻移动） */
-  groupIndex?: number;
-  /** 完整分组列表长度（用于相邻移动边界） */
-  groupCount?: number;
-  /** 将分组向上或向下移动一个位置 */
-  onMoveGroupPosition?: (groupId: number, direction: 'up' | 'down') => void;
+  /** 仅在“全部分组”的编辑视图中允许通过标题手柄移动分组 */
+  enableGroupDrag?: boolean;
   /** 分组顺序保存中，避免并发提交覆盖顺序 */
   isGroupOrderUpdating?: boolean;
   /** 收藏站点 ID 集合（浏览模式置顶排序用） */
@@ -91,15 +87,29 @@ const GroupCard = memo(function GroupCard({
   configs,
   groups,
   onMoveGroup,
-  groupIndex = 0,
-  groupCount = 0,
-  onMoveGroupPosition,
+  enableGroupDrag = false,
   isGroupOrderUpdating = false,
   favoriteIds,
   onToggleFavorite,
 }: GroupCardProps) {
+  const groupSortableId = `group-${group.id}`;
+  const {
+    attributes: groupDragAttributes,
+    listeners: groupDragListeners,
+    setNodeRef: setGroupNodeRef,
+    transform: groupTransform,
+    transition: groupTransition,
+    isDragging: isGroupDragging,
+  } = useSortable({
+    id: groupSortableId,
+    disabled: !enableGroupDrag || isGroupOrderUpdating,
+  });
+
   // 添加本地状态来管理站点排序
   const [sites, setSites] = useState<Site[]>(group.sites);
+  useEffect(() => {
+    setSites(group.sites);
+  }, [group.sites]);
   // 添加编辑弹窗的状态
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   // 添加提示消息状态
@@ -111,7 +121,12 @@ const GroupCard = memo(function GroupCard({
   // 添加折叠状态
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const savedState = localStorage.getItem(`group-${group.id}-collapsed`);
-    return savedState ? JSON.parse(savedState) : false;
+    if (!savedState) return false;
+    try {
+      return JSON.parse(savedState) === true;
+    } catch {
+      return false;
+    }
   });
 
   // 保存折叠状态到本地存储
@@ -364,20 +379,33 @@ const GroupCard = memo(function GroupCard({
 
   return (
     <Paper
+      ref={setGroupNodeRef}
       elevation={0}
       onContextMenu={handleContextMenu}
       className='group-card'
+      data-group-dragging={isGroupDragging ? 'true' : undefined}
+      style={{
+        transform: CSS.Transform.toString(groupTransform),
+        transition: groupTransition,
+        zIndex: isGroupDragging ? 20 : undefined,
+        position: 'relative',
+      }}
       sx={{
         borderRadius: 'var(--radius-lg)',
-        p: { xs: 2, sm: 3 },
+        p: { xs: 1.75, sm: 2.25 },
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
-        // 分组卡数量少（几组），可用 hover 阴影过渡强化层次反馈（preminum 悬浮感）
-        boxShadow: 'var(--shadow-sm)',
-        transition: 'box-shadow 200ms ease, border-color 200ms ease',
+        boxShadow: isGroupDragging ? 'var(--shadow-md)' : 'none',
+        transition: isGroupDragging
+          ? 'none'
+          : 'border-color 160ms ease, background-color 160ms ease',
         '&:hover': {
-          boxShadow: 'var(--shadow-md)',
           borderColor: 'var(--color-border-strong)',
+          bgcolor: 'var(--color-card-hover)',
+        },
+        '&[data-group-dragging="true"]': {
+          borderColor: 'var(--color-accent-muted)',
+          bgcolor: 'var(--color-elevated)',
         },
       }}
     >
@@ -386,42 +414,87 @@ const GroupCard = memo(function GroupCard({
         flexDirection={{ xs: 'column', sm: 'row' }}
         justifyContent='space-between'
         alignItems={{ xs: 'flex-start', sm: 'center' }}
-        mb={2.5}
-        gap={1}
+        mb={isCollapsed ? 0 : 2}
+        gap={1.25}
+        className='group-card-header'
+        sx={{
+          '&:hover .group-drag-handle, &:focus-within .group-drag-handle': {
+            opacity: 0.72,
+          },
+        }}
       >
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 1,
-            cursor: 'pointer',
-            '&:hover': {
-              '& .collapse-icon': {
-                color: 'var(--color-accent)',
-              },
-            },
+            gap: 0.75,
+            minWidth: 0,
           }}
-          onClick={handleToggleCollapse}
         >
+          {enableGroupDrag && (
+            <Tooltip title={isGroupOrderUpdating ? '正在保存分组顺序' : '拖动调整分组顺序'}>
+              <span>
+                <IconButton
+                  className='group-drag-handle'
+                  size='small'
+                  disabled={isGroupOrderUpdating}
+                  aria-label='拖动调整分组顺序'
+                  aria-busy={isGroupOrderUpdating}
+                  {...groupDragAttributes}
+                  {...groupDragListeners}
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    ml: -0.75,
+                    color: 'var(--text-tertiary)',
+                    cursor: isGroupDragging ? 'grabbing' : 'grab',
+                    opacity: isGroupDragging ? 1 : 0,
+                    transition: 'opacity 140ms ease, color 140ms ease',
+                    touchAction: 'none',
+                    '&:hover, &:focus-visible': {
+                      opacity: 1,
+                      color: 'var(--color-accent)',
+                      bgcolor: 'var(--color-accent-dim)',
+                    },
+                    '@media (hover: none), (pointer: coarse)': {
+                      opacity: 0.5,
+                    },
+                  }}
+                >
+                  <DragIndicatorIcon fontSize='small' />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
           <IconButton
             size='small'
             className='collapse-icon'
+            onClick={handleToggleCollapse}
             sx={{
+              width: 36,
+              height: 36,
               transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-              transition: 'transform 0.3s ease-in-out',
+              color: 'var(--text-tertiary)',
+              transition: 'transform 180ms ease, color 140ms ease',
+              '&:hover': { color: 'var(--color-accent)', bgcolor: 'var(--color-accent-dim)' },
             }}
             aria-label={isCollapsed ? '展开分组' : '折叠分组'}
           >
             <ExpandMoreIcon />
           </IconButton>
           <Typography
-            variant='h5'
+            variant='h6'
             component='h2'
-            fontWeight={600}
+            onClick={handleToggleCollapse}
             sx={{
               fontFamily: 'var(--font-heading)',
-              mb: { xs: 1, sm: 0 },
+              fontSize: { xs: '1rem', sm: '1.05rem' },
+              lineHeight: 1.35,
+              fontWeight: 650,
+              letterSpacing: '-0.01em',
               color: 'var(--text-primary)',
+              cursor: 'pointer',
+              minWidth: 0,
             }}
           >
             {group.name}
@@ -435,7 +508,7 @@ const GroupCard = memo(function GroupCard({
                 fontSize: '12px',
               }}
             >
-              ({group.sites.length})
+              {group.sites.length}
             </Typography>
           </Typography>
         </Box>
@@ -496,47 +569,6 @@ const GroupCard = memo(function GroupCard({
                 >
                   排序
                 </Button>
-
-                {onMoveGroupPosition && group.id && groupCount > 1 && (
-                  <Box
-                    aria-busy={isGroupOrderUpdating}
-                    aria-label={isGroupOrderUpdating ? '正在保存分组顺序' : '调整分组顺序'}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-md)',
-                      bgcolor: 'var(--color-surface)',
-                    }}
-                  >
-                    <Tooltip title='上移分组'>
-                      <span>
-                        <IconButton
-                          size='small'
-                          onClick={() => onMoveGroupPosition(group.id as number, 'up')}
-                          disabled={groupIndex === 0 || isGroupOrderUpdating}
-                          aria-label='上移分组'
-                          sx={{ minWidth: 40, minHeight: 40 }}
-                        >
-                          <ArrowUpwardIcon fontSize='small' />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title='下移分组'>
-                      <span>
-                        <IconButton
-                          size='small'
-                          onClick={() => onMoveGroupPosition(group.id as number, 'down')}
-                          disabled={groupIndex === groupCount - 1 || isGroupOrderUpdating}
-                          aria-label='下移分组'
-                          sx={{ minWidth: 40, minHeight: 40 }}
-                        >
-                          <ArrowDownwardIcon fontSize='small' />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  </Box>
-                )}
 
                 {onUpdateGroup && onDeleteGroup && (
                   <Tooltip title='编辑分组'>

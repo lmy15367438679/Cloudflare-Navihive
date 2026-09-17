@@ -43,7 +43,6 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import SortableGroupItem from './components/SortableGroupItem';
 // Material UI 导入
 import { createAppTheme } from './theme/theme';
 import {
@@ -83,7 +82,6 @@ const api =
 // 排序模式枚举
 enum SortMode {
   None,
-  GroupSort,
   SiteSort,
 }
 
@@ -325,62 +323,6 @@ function App() {
   const [isGroupOrderUpdating, setIsGroupOrderUpdating] = useState(false);
   const groupOrderUpdateLockRef = useRef(false);
 
-  const handleSaveGroupOrder = async () => {
-    if (groupOrderUpdateLockRef.current) return;
-    groupOrderUpdateLockRef.current = true;
-    setIsGroupOrderUpdating(true);
-
-    try {
-      const groupOrders = groups.map((group, index) => ({
-        id: group.id as number,
-        order_num: index,
-      }));
-      const result = await api.updateGroupOrder(groupOrders);
-      if (result) {
-        await fetchData();
-      } else {
-        throw new Error('分组排序更新失败');
-      }
-      setSortMode(SortMode.None);
-      setCurrentSortingGroupId(null);
-    } catch (error) {
-      handleError('更新分组排序失败: ' + (error as Error).message);
-    } finally {
-      groupOrderUpdateLockRef.current = false;
-      setIsGroupOrderUpdating(false);
-    }
-  };
-
-  const handleMoveGroupPosition = useCallback(
-    async (groupId: number, direction: 'up' | 'down') => {
-      if (groupOrderUpdateLockRef.current) return;
-
-      const currentIndex = groups.findIndex((group) => group.id === groupId);
-      const targetIndex = currentIndex + (direction === 'up' ? -1 : 1);
-      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= groups.length) return;
-
-      const reorderedGroups = arrayMove(groups, currentIndex, targetIndex);
-      setGroups(reorderedGroups);
-      groupOrderUpdateLockRef.current = true;
-      setIsGroupOrderUpdating(true);
-
-      try {
-        const result = await api.updateGroupOrder(
-          reorderedGroups.map((group, index) => ({ id: group.id as number, order_num: index }))
-        );
-        if (!result) throw new Error('分组排序更新失败');
-      } catch (error) {
-        setGroups(groups);
-        await fetchData({ silent: true });
-        handleError('更新分组排序失败: ' + (error as Error).message);
-      } finally {
-        groupOrderUpdateLockRef.current = false;
-        setIsGroupOrderUpdating(false);
-      }
-    },
-    [fetchData, groups, handleError, setGroups]
-  );
-
   const handleSaveSiteOrder = useCallback(
     async (_groupId: number, sites: Site[]) => {
       try {
@@ -413,17 +355,40 @@ function App() {
     setCurrentSortingGroupId(null);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-    if (active.id !== over.id) {
-      const oldIndex = groups.findIndex((group) => group.id.toString() === active.id);
-      const newIndex = groups.findIndex((group) => group.id.toString() === over.id);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        setGroups(arrayMove(groups, oldIndex, newIndex));
+  const handleGroupDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id || groupOrderUpdateLockRef.current) return;
+
+      const oldIndex = groups.findIndex((group) => `group-${group.id}` === active.id);
+      const newIndex = groups.findIndex((group) => `group-${group.id}` === over.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+
+      const previousGroups = groups;
+      const reorderedGroups = arrayMove(groups, oldIndex, newIndex).map((group, index) => ({
+        ...group,
+        order_num: index,
+      }));
+      groupOrderUpdateLockRef.current = true;
+      setIsGroupOrderUpdating(true);
+      setGroups(reorderedGroups);
+
+      try {
+        const result = await api.updateGroupOrder(
+          reorderedGroups.map((group, index) => ({ id: group.id as number, order_num: index }))
+        );
+        if (!result) throw new Error('分组排序更新失败');
+      } catch (error) {
+        setGroups(previousGroups);
+        await fetchData({ silent: true });
+        handleError('更新分组排序失败: ' + (error as Error).message);
+      } finally {
+        groupOrderUpdateLockRef.current = false;
+        setIsGroupOrderUpdating(false);
       }
-    }
-  };
+    },
+    [fetchData, groups, handleError, setGroups]
+  );
 
   // ========== 配置 ==========
   const [configs, setConfigs] = useState<Record<string, string>>(DEFAULT_CONFIGS);
@@ -548,11 +513,6 @@ function App() {
 
   const handleCloseAddSite = () => setOpenAddSite(false);
 
-  const groupPositionById = useMemo(
-    () => new Map(groups.map((group, index) => [group.id as number, index])),
-    [groups]
-  );
-
   // 渲染单个分组卡片：普通模式全量渲染与虚拟化列表（renderGroup）共用同一实现，
   // 保证两种路径下 GroupCard 收到的 props 完全一致。
   // 注意：必须定义在所有被依赖的 callback 之后（configs/handleSaveSiteOrder 等在下方声明）。
@@ -574,9 +534,9 @@ function App() {
         configs={configs}
         groups={groups}
         onMoveGroup={handleMoveGroup}
-        groupIndex={groupPositionById.get(group.id as number) ?? 0}
-        groupCount={groups.length}
-        onMoveGroupPosition={handleMoveGroupPosition}
+        enableGroupDrag={
+          viewMode === 'edit' && activeGroupId === null && sortMode === SortMode.None
+        }
         isGroupOrderUpdating={isGroupOrderUpdating}
         favoriteIds={favoriteIds}
         onToggleFavorite={toggleFavorite}
@@ -596,9 +556,8 @@ function App() {
       handleGroupDelete,
       configs,
       groups,
-      groupPositionById,
       handleMoveGroup,
-      handleMoveGroupPosition,
+      activeGroupId,
       isGroupOrderUpdating,
       favoriteIds,
       toggleFavorite,
@@ -967,21 +926,8 @@ function App() {
                   flex: 1,
                 }}
               >
-                {sortMode === SortMode.GroupSort ? '拖拽分组以重新排序' : '拖拽站点以重新排序'}
+                拖拽站点以重新排序
               </Typography>
-              {sortMode === SortMode.GroupSort && (
-                <Button
-                  variant='contained'
-                  size='small'
-                  onClick={handleSaveGroupOrder}
-                  sx={{
-                    bgcolor: 'var(--color-accent)',
-                    '&:hover': { bgcolor: 'var(--color-accent-dim)' },
-                  }}
-                >
-                  保存
-                </Button>
-              )}
               <Button
                 variant='outlined'
                 size='small'
@@ -1063,19 +1009,21 @@ function App() {
                 minHeight: '100px',
               }}
             >
-              {sortMode === SortMode.GroupSort ? (
+              {viewMode === 'edit' && !activeGroupId && sortMode === SortMode.None ? (
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
+                  onDragEnd={handleGroupDragEnd}
                 >
                   <SortableContext
-                    items={groups.map((group) => group.id.toString())}
+                    items={groups.map((group) => `group-${group.id}`)}
                     strategy={verticalListSortingStrategy}
                   >
-                    <Stack spacing={2} sx={{ '& > *': { transition: 'none' } }}>
+                    <Stack spacing={2.5}>
                       {groups.map((group) => (
-                        <SortableGroupItem key={group.id} id={group.id.toString()} group={group} />
+                        <Box key={`group-${group.id}`} id={`group-${group.id}`}>
+                          {renderGroupCard(group)}
+                        </Box>
                       ))}
                     </Stack>
                   </SortableContext>
@@ -1109,9 +1057,7 @@ function App() {
                           configs={configs}
                           groups={groups}
                           onMoveGroup={handleMoveGroup}
-                          groupIndex={groupPositionById.get(group.id as number) ?? 0}
-                          groupCount={groups.length}
-                          onMoveGroupPosition={handleMoveGroupPosition}
+                          enableGroupDrag={false}
                           isGroupOrderUpdating={isGroupOrderUpdating}
                           favoriteIds={favoriteIds}
                           onToggleFavorite={toggleFavorite}

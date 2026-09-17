@@ -213,7 +213,7 @@ const Sidebar = memo(function Sidebar({
                 '&.Mui-selected': {
                   bgcolor: 'var(--color-accent-dim)',
                   color: 'var(--color-accent)',
-                  borderLeft: '3px solid var(--color-accent)',
+                  boxShadow: 'inset 3px 0 0 var(--color-accent)',
                   '&:hover': {
                     bgcolor: 'var(--color-accent-dim)',
                   },
@@ -250,7 +250,7 @@ const Sidebar = memo(function Sidebar({
                     '&.Mui-selected': {
                       bgcolor: 'var(--color-accent-dim)',
                       color: 'var(--color-accent)',
-                      borderLeft: '3px solid var(--color-accent)',
+                      boxShadow: 'inset 3px 0 0 var(--color-accent)',
                       '&:hover': {
                         bgcolor: 'var(--color-accent-dim)',
                       },

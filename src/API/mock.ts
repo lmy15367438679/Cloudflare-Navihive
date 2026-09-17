@@ -223,9 +223,9 @@ export class MockNavigationClient {
 
     // 根据认证状态过滤分组
     if (!this.isAuthenticated) {
-      return mockGroups.filter((g) => g.is_public === 1);
+      return mockGroups.filter((g) => g.is_public === 1).sort((a, b) => a.order_num - b.order_num);
     }
-    return [...mockGroups];
+    return [...mockGroups].sort((a, b) => a.order_num - b.order_num);
   }
 
   // 获取所有分组及其站点 (使用 JOIN 优化,避免 N+1 查询)
@@ -245,12 +245,16 @@ export class MockNavigationClient {
       );
     }
 
-    // 组合分组和站点
-    return groups.map((group) => ({
-      ...group,
-      id: group.id!, // 确保 id 存在
-      sites: sites.filter((site) => site.group_id === group.id),
-    }));
+    // 与 D1 查询保持一致：分组和站点都按 order_num 返回，确保排序后刷新仍能复现。
+    return groups
+      .sort((a, b) => a.order_num - b.order_num)
+      .map((group) => ({
+        ...group,
+        id: group.id!, // 确保 id 存在
+        sites: sites
+          .filter((site) => site.group_id === group.id)
+          .sort((a, b) => a.order_num - b.order_num),
+      }));
   }
 
   async getGroup(id: number): Promise<Group | null> {
