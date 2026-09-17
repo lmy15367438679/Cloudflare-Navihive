@@ -52,8 +52,8 @@ export default function AppLayout({
     : topBar;
 
   const sidebarForDrawer = isValidElement(sidebar)
-    ? cloneElement(sidebar as React.ReactElement<{ variant?: 'hover' | 'static' }>, {
-        variant: 'static',
+    ? cloneElement(sidebar as React.ReactElement<{ onSidebarCollapse?: () => void }>, {
+        onSidebarCollapse: handleMobileMenuClose,
       })
     : sidebar;
 
@@ -107,10 +107,20 @@ export default function AppLayout({
           位于背景壁纸之上、内容之下；pointer-events: none 不挡任何交互 */}
       {particles && <ParticlesBackground />}
 
-      {topBarWithMobile}
+      <Box sx={{ ml: { xs: 0, md: 'var(--sidebar-width)' } }}>{topBarWithMobile}</Box>
 
-      {/* 桌面端侧边栏 (hover 触发) */}
-      <Box sx={{ display: { xs: 'none', md: 'block' } }}>{sidebar}</Box>
+      {/* 桌面端固定侧边栏：稳定的目录结构，避免悬浮展开造成布局和焦点跳动 */}
+      <Box
+        sx={{
+          display: { xs: 'none', md: 'block' },
+          position: 'fixed',
+          inset: '0 auto 0 0',
+          width: 'var(--sidebar-width)',
+          zIndex: 1200,
+        }}
+      >
+        {sidebar}
+      </Box>
 
       {/* 移动端抽屉 */}
       <Drawer
@@ -134,7 +144,7 @@ export default function AppLayout({
         sx={{
           position: 'relative',
           zIndex: 2,
-          ml: 0,
+          ml: { xs: 0, md: 'var(--sidebar-width)' },
           minHeight: 'calc(100vh - var(--topbar-height))',
           // 注意：不给 main 加 will-change——内容含几百张卡片、总高可达上万像素，
           // 对 Chrome 而言是超大型合成层，超出上限会被放弃合成甚至反复重试（有害）。

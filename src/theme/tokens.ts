@@ -13,65 +13,65 @@
  */
 export const tokens = {
   color: {
-    canvas: '#0B0F14', // 页面底色
-    surface: '#10161D', // 侧栏 / 顶栏
-    card: '#121922', // 卡片
-    cardHover: '#151E28', // 卡片 hover
-    elevated: '#18212C', // 弹窗 / 菜单
-    elevatedHover: '#1E2936', // 浮层 hover
-    accent: '#22C55E', // 品牌主色（绿）
-    accentDim: '#166534', // 主色弱化底（选中态 / 文字强调底）
-    accentHover: '#16A34A', // 主色 hover
-    accentMuted: 'rgba(34, 197, 94, 0.35)', // 主色弱化边框（badge 描边等）
+    canvas: '#181816', // 温和墨黑页面底色
+    surface: '#1F1F1C', // 侧栏 / 顶栏
+    card: '#242420', // 卡片
+    cardHover: '#2A2925', // 卡片 hover
+    elevated: '#292824', // 弹窗 / 菜单
+    elevatedHover: '#302F2A', // 浮层 hover
+    accent: '#E29A70', // 陶土色品牌强调
+    accentDim: 'rgba(226, 154, 112, 0.13)',
+    accentHover: '#EAA983',
+    accentMuted: 'rgba(226, 154, 112, 0.34)',
     destructive: '#EF4444',
     destructiveDim: 'rgba(239, 68, 68, 0.12)',
     success: '#22C55E',
     warning: '#F59E0B',
     info: '#38BDF8',
-    muted: '#94A3B8',
-    border: 'rgba(148, 163, 184, 0.14)',
-    borderStrong: 'rgba(148, 163, 184, 0.3)',
-    focusRing: '#22C55E', // 键盘焦点环
-    overlay: 'rgba(2, 6, 23, 0.55)', // 模态 scrim
+    muted: '#A39E94',
+    border: 'rgba(224, 216, 202, 0.11)',
+    borderStrong: 'rgba(224, 216, 202, 0.22)',
+    focusRing: '#E29A70',
+    overlay: 'rgba(17, 16, 14, 0.62)',
   },
   text: {
-    primary: '#F1F5F9',
-    secondary: '#CBD5E1',
-    tertiary: '#94A3B8', // 已提升对比度（深底上 ≥4.5:1）
-    disabled: '#64748B',
-    onAccent: '#052E16', // 主色按钮上的文字（深绿底）
+    primary: '#F3EFE7',
+    secondary: '#C9C2B6',
+    tertiary: '#9F988D',
+    disabled: '#716C64',
+    onAccent: '#25150E',
   },
   light: {
-    canvas: '#F4F6F8',
-    surface: '#FFFFFF',
-    card: '#FFFFFF',
-    cardHover: '#F8FAFB',
-    elevated: '#FFFFFF',
-    elevatedHover: '#F8FAFC',
-    border: 'rgba(15, 23, 42, 0.08)', // 柔和低透边框（premium 质感，替代生硬实色）
-    borderStrong: 'rgba(15, 23, 42, 0.14)',
-    muted: '#64748B',
-    accent: '#15803D', // 浅色主色（绿-700，白底对比度 ≥4.5:1）
-    accentHover: '#166534',
-    accentDim: 'rgba(34, 197, 94, 0.12)', // 浅色选中底
-    accentMuted: 'rgba(21, 128, 61, 0.35)', // 浅色主色弱化边框
+    canvas: '#F3F0E9',
+    surface: '#EAE6DD',
+    card: '#FBF9F5',
+    cardHover: '#FFFFFF',
+    elevated: '#FFFEFB',
+    elevatedHover: '#F8F5EF',
+    border: 'rgba(55, 49, 40, 0.1)',
+    borderStrong: 'rgba(55, 49, 40, 0.2)',
+    muted: '#756F66',
+    accent: '#9A4F2E',
+    accentHover: '#7E3E24',
+    accentDim: 'rgba(154, 79, 46, 0.1)',
+    accentMuted: 'rgba(154, 79, 46, 0.3)',
     destructive: '#DC2626',
     destructiveDim: 'rgba(239, 68, 68, 0.1)',
     success: '#16A34A',
     warning: '#B45309',
     info: '#0369A1',
-    focusRing: '#16A34A',
-    overlay: 'rgba(15, 23, 42, 0.4)',
+    focusRing: '#9A4F2E',
+    overlay: 'rgba(42, 36, 28, 0.42)',
     text: {
-      primary: '#0F172A',
-      secondary: '#334155',
-      tertiary: '#475569',
-      disabled: '#94A3B8',
+      primary: '#292620',
+      secondary: '#565149',
+      tertiary: '#746E64',
+      disabled: '#A39D92',
       onAccent: '#FFFFFF',
     },
-    shadowSm: '0 1px 2px rgba(15, 23, 42, 0.04)',
-    shadowMd: '0 8px 24px rgba(15, 23, 42, 0.08)',
-    shadowLg: '0 16px 40px rgba(15, 23, 42, 0.12)',
+    shadowSm: '0 1px 2px rgba(48, 39, 29, 0.05)',
+    shadowMd: '0 10px 30px rgba(48, 39, 29, 0.09)',
+    shadowLg: '0 20px 52px rgba(48, 39, 29, 0.14)',
   },
   radius: {
     sm: '6px',
@@ -95,8 +95,8 @@ export const tokens = {
     body: "'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
   },
   layout: {
-    topbarHeight: '56px',
-    sidebarWidth: '240px',
+    topbarHeight: '64px',
+    sidebarWidth: '264px',
   },
 } as const;
 

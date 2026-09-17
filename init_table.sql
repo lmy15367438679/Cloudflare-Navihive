@@ -34,20 +34,3 @@ CREATE TABLE IF NOT EXISTS configs (
 
 -- 设置初始化标志
 INSERT INTO configs (key, value) VALUES ('DB_INITIALIZED', 'true');
-
--- AI 辅助功能默认配置
--- 说明：ai.apiKey 由 Worker 在服务端用 AES-256-GCM 加密后写入（密钥来自 AI_SECRET/AUTH_SECRET），
--- 绝不写入明文，也绝不下发到前端；下方仅预置开关与留空的基础配置。
-INSERT INTO configs (key, value) VALUES ('ai.enabled', 'false');
-INSERT INTO configs (key, value) VALUES ('ai.baseUrl', '');
-INSERT INTO configs (key, value) VALUES ('ai.model', '');
--- 多模型列表：JSON 数组字符串（同一 Base URL 下可配置多个模型，第一个为默认），由 Worker 保存时规范化
-INSERT INTO configs (key, value) VALUES ('ai.models', '[]');
--- AI 技能总开关（函数调用：站点检索 / 分组查询 / 站内推荐；上游不支持时自动降级为站点库摘要注入）
-INSERT INTO configs (key, value) VALUES ('ai.toolsEnabled', 'true');
--- 对话上下文 Token 预算（0 = 不限制历史长度；1000–8000 时超出部分截断以节省 token）
--- 用 UPSERT 保证已有站点重跑本脚本时也切换到「不限制」，与前端已移除预算面板保持一致
-INSERT INTO configs (key, value) VALUES ('ai.tokenBudget', '0')
-ON CONFLICT(key) DO UPDATE SET value = '0';
--- AI 扩展技能开关（学术检索 / 任务建议 / 百科教学；需 toolsEnabled 开启才生效，上游不支持时自动降级）
-INSERT INTO configs (key, value) VALUES ('ai.extSkillsEnabled', 'true');

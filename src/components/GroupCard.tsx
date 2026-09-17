@@ -391,21 +391,20 @@ const GroupCard = memo(function GroupCard({
         position: 'relative',
       }}
       sx={{
-        borderRadius: 'var(--radius-lg)',
-        p: { xs: 1.75, sm: 2.25 },
-        border: '1px solid var(--color-border)',
-        bgcolor: 'var(--color-card)',
+        borderRadius: 0,
+        p: 0,
+        border: 'none',
+        bgcolor: 'transparent',
         boxShadow: isGroupDragging ? 'var(--shadow-md)' : 'none',
         transition: isGroupDragging
           ? 'none'
           : 'border-color 160ms ease, background-color 160ms ease',
-        '&:hover': {
-          borderColor: 'var(--color-border-strong)',
-          bgcolor: 'var(--color-card-hover)',
-        },
+        '&:hover': { bgcolor: 'transparent' },
         '&[data-group-dragging="true"]': {
           borderColor: 'var(--color-accent-muted)',
           bgcolor: 'var(--color-elevated)',
+          borderRadius: 'var(--radius-lg)',
+          p: 1.5,
         },
       }}
     >
@@ -414,10 +413,13 @@ const GroupCard = memo(function GroupCard({
         flexDirection={{ xs: 'column', sm: 'row' }}
         justifyContent='space-between'
         alignItems={{ xs: 'flex-start', sm: 'center' }}
-        mb={isCollapsed ? 0 : 2}
+        mb={isCollapsed ? 0 : 1.5}
         gap={1.25}
         className='group-card-header'
         sx={{
+          minHeight: 44,
+          borderBottom: isCollapsed ? 'none' : '1px solid var(--color-border)',
+          pb: isCollapsed ? 0 : 1.25,
           '&:hover .group-drag-handle, &:focus-within .group-drag-handle': {
             opacity: 0.72,
           },
@@ -488,9 +490,9 @@ const GroupCard = memo(function GroupCard({
             onClick={handleToggleCollapse}
             sx={{
               fontFamily: 'var(--font-heading)',
-              fontSize: { xs: '1rem', sm: '1.05rem' },
+              fontSize: { xs: '0.95rem', sm: '1rem' },
               lineHeight: 1.35,
-              fontWeight: 650,
+              fontWeight: 700,
               letterSpacing: '-0.01em',
               color: 'var(--text-primary)',
               cursor: 'pointer',

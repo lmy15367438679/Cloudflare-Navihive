@@ -11,7 +11,6 @@ import {
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MenuIcon from '@mui/icons-material/Menu';
 import HomeIcon from '@mui/icons-material/Home';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ThemeToggle from '../ThemeToggle';
 import { useState } from 'react';
 
@@ -34,10 +33,6 @@ interface TopBarProps {
   onShowAll?: () => void;
   /** 当前是否处于某个分组视图（用于显示“回到全部”按钮） */
   isGroupView?: boolean;
-  /** AI 助手是否已由管理员开启 */
-  aiEnabled?: boolean;
-  /** 打开 AI 助手对话框 */
-  onOpenAI?: () => void;
 }
 
 export default function TopBar({
@@ -56,8 +51,6 @@ export default function TopBar({
   onMobileMenuOpen,
   onShowAll,
   isGroupView = false,
-  aiEnabled = false,
-  onOpenAI,
 }: TopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -69,8 +62,9 @@ export default function TopBar({
         alignItems: 'center',
         justifyContent: 'space-between',
         height: 'var(--topbar-height)',
-        px: 2,
-        bgcolor: 'var(--color-surface)',
+        px: { xs: 1.5, sm: 2.5, md: 4 },
+        bgcolor: 'color-mix(in srgb, var(--color-canvas) 88%, transparent)',
+        backdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--color-border)',
         position: 'sticky',
         top: 0,
@@ -91,7 +85,8 @@ export default function TopBar({
           sx={{
             fontFamily: 'var(--font-heading)',
             fontWeight: 600,
-            fontSize: '16px',
+            fontSize: '14px',
+            letterSpacing: '-0.01em',
             color: 'var(--text-primary)',
           }}
         >
@@ -139,27 +134,6 @@ export default function TopBar({
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         <ThemeToggle darkMode={darkMode} onToggle={onToggleTheme} />
-
-        {(aiEnabled || isAuthenticated) && onOpenAI && (
-          <Tooltip title='AI 智能助手'>
-            <IconButton
-              size='small'
-              onClick={onOpenAI}
-              aria-label='AI 智能助手'
-              sx={{
-                borderRadius: '50%',
-                bgcolor: 'transparent',
-                color: 'var(--text-primary)',
-                '&:hover': {
-                  bgcolor: 'var(--color-card-hover)',
-                  color: 'var(--color-accent)',
-                },
-              }}
-            >
-              <AutoAwesomeIcon fontSize='small' />
-            </IconButton>
-          </Tooltip>
-        )}
 
         {isAuthenticated && (
           <>

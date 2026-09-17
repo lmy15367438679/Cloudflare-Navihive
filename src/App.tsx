@@ -14,7 +14,6 @@ import BookmarkletGuide from './components/NewFeatures/BookmarkletGuide';
 import BookmarkletAddPanel from './components/NewFeatures/BookmarkletAddPanel';
 import BatchMoveDialog from './components/NewFeatures/BatchMoveDialog';
 import EnhancedSettings from './components/NewFeatures/EnhancedSettings';
-import AIAssistant from './components/NewFeatures/AIAssistant';
 import LoadingSkeleton from './components/LoadingSkeleton';
 import { sanitizeCSS, isSecureUrl, extractDomain } from './utils/url';
 import { SearchResultItem } from './utils/search';
@@ -96,7 +95,7 @@ const DEFAULT_CONFIGS = {
   'site.searchBoxEnabled': 'true',
   'site.searchBoxGuestEnabled': 'true',
   // 内置毛玻璃拟态（半透明卡片 + 模糊 + 深色白字），默认开启；可在 个性化设置→动态效果 中关闭
-  'site.glassEffect': 'true',
+  'site.glassEffect': 'false',
   // 背景特效：粒子 / 背景虚化（动态效果 → 背景特效）
   'site.particlesEnabled': 'false',
   'site.backgroundBlur': 'false',
@@ -108,16 +107,6 @@ const DEFAULT_CONFIGS = {
   'site.compactMode': 'false',
   'site.lazyLoadImages': 'false',
   'site.imageCache': 'false',
-  // AI 智能助手总开关（管理员在助手弹窗→设置中开启；默认关闭）
-  'ai.enabled': 'false',
-  // AI 多模型列表（JSON 数组字符串，第一个为默认模型；管理员在设置中维护）
-  'ai.models': '[]',
-  // AI 技能总开关（函数调用：站点检索 / 分组查询 / 站内推荐；上游不支持时自动降级）
-  'ai.toolsEnabled': 'true',
-  // 对话上下文 Token 预算（节省 token：超出预算的历史消息将被截断）
-  'ai.tokenBudget': '0',
-  // AI 扩展技能开关（学术检索 / 任务建议 / 百科教学；需 toolsEnabled 开启才生效，上游不支持时自动降级）
-  'ai.extSkillsEnabled': 'true',
 };
 
 function App() {
@@ -627,7 +616,6 @@ function App() {
   const [openBookmarklet, setOpenBookmarklet] = useState(false);
   const [openBatchMove, setOpenBatchMove] = useState(false);
   const [openEnhancedSettings, setOpenEnhancedSettings] = useState(false);
-  const [openAIAssistant, setOpenAIAssistant] = useState(false);
 
   // ========== 书签脚本弹窗模式 ==========
   const [bookmarkletData, setBookmarkletData] = useState<{
@@ -703,7 +691,7 @@ function App() {
     }
     // 同步浏览器地址栏 theme-color（移动端标签栏/地址栏配色与页面背景一致，消除默认蓝色残留）
     const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = darkMode ? '#020617' : '#F1F5F9';
+    if (themeMeta) themeMeta.content = darkMode ? '#181816' : '#F3F0E9';
   }, [darkMode]);
 
   // ========== 内置毛玻璃拟态（site.glassEffect，默认开启） ==========
@@ -898,8 +886,6 @@ function App() {
             onOpenBookmarklet={() => setOpenBookmarklet(true)}
             onOpenBatchMove={() => setOpenBatchMove(true)}
             onOpenEnhancedSettings={() => setOpenEnhancedSettings(true)}
-            aiEnabled={configs['ai.enabled'] === 'true'}
-            onOpenAI={() => setOpenAIAssistant(true)}
             onLogout={handleLogout}
             onShowAll={handleShowAllGroups}
             isGroupView={activeGroupId !== null}
@@ -907,14 +893,57 @@ function App() {
         }
       >
         <Container
-          maxWidth='lg'
+          maxWidth='xl'
           sx={{
-            py: 4,
-            px: { xs: 2, sm: 3, md: 4 },
+            py: { xs: 3, md: 5 },
+            px: { xs: 2, sm: 3, md: 5 },
             position: 'relative',
             zIndex: 2,
           }}
         >
+          <Box sx={{ mb: { xs: 3, md: 4.5 }, maxWidth: 680 }}>
+            <Typography
+              component='p'
+              sx={{
+                color: 'var(--color-accent)',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                mb: 1,
+              }}
+            >
+              {activeGroupId === null ? 'Directory' : 'Collection'}
+            </Typography>
+            <Typography
+              component='h1'
+              sx={{
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-heading)',
+                fontSize: { xs: '1.75rem', md: '2.35rem' },
+                fontWeight: 720,
+                lineHeight: 1.15,
+                letterSpacing: '-0.035em',
+              }}
+            >
+              {activeGroupId === null
+                ? '你的数字工作台'
+                : groups.find((group) => group.id === activeGroupId)?.name || '导航分组'}
+            </Typography>
+            <Typography
+              sx={{
+                mt: 1.25,
+                color: 'var(--text-secondary)',
+                fontSize: { xs: '13px', md: '14px' },
+                lineHeight: 1.75,
+              }}
+            >
+              {activeGroupId === null
+                ? `将 ${groups.reduce((total, group) => total + (group.sites?.length || 0), 0)} 个常用网站整理成清晰、安静的访问目录。`
+                : '浏览这个分组中的全部站点，或从侧栏切换到其他目录。'}
+            </Typography>
+          </Box>
+
           {/* 排序模式工具栏 */}
           {sortMode !== SortMode.None && (
             <Box sx={{ display: 'flex', gap: 1, mb: 3, alignItems: 'center' }}>
@@ -1366,18 +1395,6 @@ function App() {
             open={openLinkChecker}
             onClose={() => setOpenLinkChecker(false)}
             sites={groups.flatMap((g) => g.sites || [])}
-          />
-
-          {/* AI 智能助手对话框 */}
-          <AIAssistant
-            open={openAIAssistant}
-            onClose={() => setOpenAIAssistant(false)}
-            isAuthenticated={isAuthenticated}
-            api={api}
-            onEnabledChange={(enabled) => {
-              // 同步开关到 configs 状态，立即生效（访客入口随开关显隐）
-              setConfigs((prev) => ({ ...prev, 'ai.enabled': enabled ? 'true' : 'false' }));
-            }}
           />
 
           {/* 一键收藏对话框 */}

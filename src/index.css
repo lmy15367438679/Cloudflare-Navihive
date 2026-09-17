@@ -13,9 +13,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--color-canvas);
-  background-image: linear-gradient(var(--color-border) 1px, transparent 1px);
-  background-size: 100% 64px;
-  background-position: 0 -1px;
+  background-image: radial-gradient(circle at 50% -20%, var(--color-accent-dim), transparent 42%);
+  background-attachment: fixed;
 }
 
 /* 长单词/URL 换行，避免横向溢出破坏布局 */

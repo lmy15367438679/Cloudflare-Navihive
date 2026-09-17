@@ -167,9 +167,9 @@ const SiteCard = memo(function SiteCard({
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 1.5,
+        gap: 1.4,
         p: 1.5,
-        borderRadius: 'var(--radius-md)',
+        borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--color-border)',
         bgcolor: 'var(--color-card)',
         cursor: isEditMode ? 'grab' : 'pointer',
@@ -180,13 +180,14 @@ const SiteCard = memo(function SiteCard({
         // containment 单元会阻止 Chrome 滚动时合并/复用 tile，是滚动掉帧的隐性来源）。
         // hover 仅在编辑模式启用且瞬时变色（无 transition）：浏览模式（访客滚动书签）
         // 完全无 hover 视觉变化 → 滚动时零 tile invalidate，Chrome 纯 GPU 平移即流畅。
-        minHeight: 56,
-        boxShadow: 'none',
+        minHeight: 68,
+        boxShadow: 'var(--shadow-sm)',
         ...(viewMode === 'edit'
           ? {
               '&:hover': {
                 bgcolor: 'var(--color-card-hover)',
                 borderColor: 'var(--color-border-strong)',
+                boxShadow: 'var(--shadow-md)',
               },
             }
           : {}),
@@ -199,12 +200,12 @@ const SiteCard = memo(function SiteCard({
     >
       {/* Icon */}
       {!iconError && site.icon ? (
-        <Box position='relative' width={28} height={28} flexShrink={0} className='site-card-icon'>
+        <Box position='relative' width={34} height={34} flexShrink={0} className='site-card-icon'>
           {!imageLoaded && (
             <Skeleton
               variant='rounded'
-              width={28}
-              height={28}
+              width={34}
+              height={34}
               animation={false}
               sx={{ position: 'absolute' }}
             />
@@ -217,9 +218,9 @@ const SiteCard = memo(function SiteCard({
             decoding='async'
             fetchPriority={lazyLoadImages ? 'low' : 'auto'}
             sx={{
-              width: 28,
-              height: 28,
-              borderRadius: '4px',
+              width: 34,
+              height: 34,
+              borderRadius: '8px',
               objectFit: 'contain',
               display: imageLoaded ? 'block' : 'none',
             }}
@@ -230,9 +231,9 @@ const SiteCard = memo(function SiteCard({
       ) : (
         <Box
           sx={{
-            width: 28,
-            height: 28,
-            borderRadius: '4px',
+            width: 34,
+            height: 34,
+            borderRadius: '9px',
             bgcolor: 'var(--color-accent-dim)',
             color: 'var(--color-accent)',
             display: 'flex',
@@ -240,7 +241,7 @@ const SiteCard = memo(function SiteCard({
             justifyContent: 'center',
             flexShrink: 0,
             fontFamily: 'var(--font-heading)',
-            fontSize: '13px',
+            fontSize: '14px',
             fontWeight: 600,
           }}
         >
@@ -255,7 +256,7 @@ const SiteCard = memo(function SiteCard({
           sx={{
             fontFamily: 'var(--font-heading)',
             fontSize: '14px',
-            fontWeight: 500,
+            fontWeight: 650,
             color: 'var(--text-primary)',
             lineHeight: 1.3,
           }}
