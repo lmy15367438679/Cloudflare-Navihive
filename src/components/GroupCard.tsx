@@ -39,6 +39,8 @@ import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 // 更新组件属性接口
 interface GroupCardProps {
@@ -59,6 +61,14 @@ interface GroupCardProps {
   configs?: Record<string, string>; // 传入配置
   groups?: GroupWithSites[]; // 全部分组列表（用于快速移动）
   onMoveGroup?: (siteId: number, targetGroupId: number) => void; // 快速移动回调
+  /** 当前分组在完整分组列表中的位置（用于相邻移动） */
+  groupIndex?: number;
+  /** 完整分组列表长度（用于相邻移动边界） */
+  groupCount?: number;
+  /** 将分组向上或向下移动一个位置 */
+  onMoveGroupPosition?: (groupId: number, direction: 'up' | 'down') => void;
+  /** 分组顺序保存中，避免并发提交覆盖顺序 */
+  isGroupOrderUpdating?: boolean;
   /** 收藏站点 ID 集合（浏览模式置顶排序用） */
   favoriteIds?: Set<number>;
   /** 切换收藏状态 */
@@ -81,6 +91,10 @@ const GroupCard = memo(function GroupCard({
   configs,
   groups,
   onMoveGroup,
+  groupIndex = 0,
+  groupCount = 0,
+  onMoveGroupPosition,
+  isGroupOrderUpdating = false,
   favoriteIds,
   onToggleFavorite,
 }: GroupCardProps) {
@@ -482,6 +496,47 @@ const GroupCard = memo(function GroupCard({
                 >
                   排序
                 </Button>
+
+                {onMoveGroupPosition && group.id && groupCount > 1 && (
+                  <Box
+                    aria-busy={isGroupOrderUpdating}
+                    aria-label={isGroupOrderUpdating ? '正在保存分组顺序' : '调整分组顺序'}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      bgcolor: 'var(--color-surface)',
+                    }}
+                  >
+                    <Tooltip title='上移分组'>
+                      <span>
+                        <IconButton
+                          size='small'
+                          onClick={() => onMoveGroupPosition(group.id as number, 'up')}
+                          disabled={groupIndex === 0 || isGroupOrderUpdating}
+                          aria-label='上移分组'
+                          sx={{ minWidth: 40, minHeight: 40 }}
+                        >
+                          <ArrowUpwardIcon fontSize='small' />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title='下移分组'>
+                      <span>
+                        <IconButton
+                          size='small'
+                          onClick={() => onMoveGroupPosition(group.id as number, 'down')}
+                          disabled={groupIndex === groupCount - 1 || isGroupOrderUpdating}
+                          aria-label='下移分组'
+                          sx={{ minWidth: 40, minHeight: 40 }}
+                        >
+                          <ArrowDownwardIcon fontSize='small' />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Box>
+                )}
 
                 {onUpdateGroup && onDeleteGroup && (
                   <Tooltip title='编辑分组'>

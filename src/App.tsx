@@ -322,7 +322,14 @@ function App() {
     })
   );
 
+  const [isGroupOrderUpdating, setIsGroupOrderUpdating] = useState(false);
+  const groupOrderUpdateLockRef = useRef(false);
+
   const handleSaveGroupOrder = async () => {
+    if (groupOrderUpdateLockRef.current) return;
+    groupOrderUpdateLockRef.current = true;
+    setIsGroupOrderUpdating(true);
+
     try {
       const groupOrders = groups.map((group, index) => ({
         id: group.id as number,
@@ -338,8 +345,41 @@ function App() {
       setCurrentSortingGroupId(null);
     } catch (error) {
       handleError('更新分组排序失败: ' + (error as Error).message);
+    } finally {
+      groupOrderUpdateLockRef.current = false;
+      setIsGroupOrderUpdating(false);
     }
   };
+
+  const handleMoveGroupPosition = useCallback(
+    async (groupId: number, direction: 'up' | 'down') => {
+      if (groupOrderUpdateLockRef.current) return;
+
+      const currentIndex = groups.findIndex((group) => group.id === groupId);
+      const targetIndex = currentIndex + (direction === 'up' ? -1 : 1);
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= groups.length) return;
+
+      const reorderedGroups = arrayMove(groups, currentIndex, targetIndex);
+      setGroups(reorderedGroups);
+      groupOrderUpdateLockRef.current = true;
+      setIsGroupOrderUpdating(true);
+
+      try {
+        const result = await api.updateGroupOrder(
+          reorderedGroups.map((group, index) => ({ id: group.id as number, order_num: index }))
+        );
+        if (!result) throw new Error('分组排序更新失败');
+      } catch (error) {
+        setGroups(groups);
+        await fetchData({ silent: true });
+        handleError('更新分组排序失败: ' + (error as Error).message);
+      } finally {
+        groupOrderUpdateLockRef.current = false;
+        setIsGroupOrderUpdating(false);
+      }
+    },
+    [fetchData, groups, handleError, setGroups]
+  );
 
   const handleSaveSiteOrder = useCallback(
     async (_groupId: number, sites: Site[]) => {
@@ -508,6 +548,11 @@ function App() {
 
   const handleCloseAddSite = () => setOpenAddSite(false);
 
+  const groupPositionById = useMemo(
+    () => new Map(groups.map((group, index) => [group.id as number, index])),
+    [groups]
+  );
+
   // 渲染单个分组卡片：普通模式全量渲染与虚拟化列表（renderGroup）共用同一实现，
   // 保证两种路径下 GroupCard 收到的 props 完全一致。
   // 注意：必须定义在所有被依赖的 callback 之后（configs/handleSaveSiteOrder 等在下方声明）。
@@ -529,6 +574,10 @@ function App() {
         configs={configs}
         groups={groups}
         onMoveGroup={handleMoveGroup}
+        groupIndex={groupPositionById.get(group.id as number) ?? 0}
+        groupCount={groups.length}
+        onMoveGroupPosition={handleMoveGroupPosition}
+        isGroupOrderUpdating={isGroupOrderUpdating}
         favoriteIds={favoriteIds}
         onToggleFavorite={toggleFavorite}
       />
@@ -547,7 +596,10 @@ function App() {
       handleGroupDelete,
       configs,
       groups,
+      groupPositionById,
       handleMoveGroup,
+      handleMoveGroupPosition,
+      isGroupOrderUpdating,
       favoriteIds,
       toggleFavorite,
     ]
@@ -1057,6 +1109,10 @@ function App() {
                           configs={configs}
                           groups={groups}
                           onMoveGroup={handleMoveGroup}
+                          groupIndex={groupPositionById.get(group.id as number) ?? 0}
+                          groupCount={groups.length}
+                          onMoveGroupPosition={handleMoveGroupPosition}
+                          isGroupOrderUpdating={isGroupOrderUpdating}
                           favoriteIds={favoriteIds}
                           onToggleFavorite={toggleFavorite}
                         />
